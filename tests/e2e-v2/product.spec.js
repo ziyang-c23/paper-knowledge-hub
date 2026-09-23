@@ -6,8 +6,8 @@ test('source reading mode keeps the note reader usable without a local PDF', asy
   await expect(page.getByText('尚未附加本地原文', { exact: true })).toBeVisible();
   await expect(page.getByRole('region', { name: '本地阅读记录' })).toBeVisible();
   await expect(page.getByRole('heading', { name: '阅读记录', exact: true })).toBeVisible();
-  await expect(page.getByRole('region', { name: '论文阅读进度' })).toContainText('结构化笔记');
-  await expect(page.getByRole('region', { name: '论文阅读进度' })).toContainText('进入比较');
+  await expect(page.getByRole('region', { name: '论文阅读工作流' })).toContainText('阅读笔记');
+  await expect(page.getByRole('region', { name: '论文阅读工作流' })).toContainText('专题比较');
   expect(errors).toEqual([]);
 });
 

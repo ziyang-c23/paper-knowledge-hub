@@ -470,63 +470,67 @@ main {
   border-radius: 12px;
   background: linear-gradient(105deg, #f7faf4, #fff);
 }
-.paper-progress-heading {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 14px;
-}
-.paper-progress-heading h2 {
-  margin: 4px 0 0;
-  font-size: 18px;
-}
 .paper-progress-steps {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 8px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
 }
-.paper-progress-steps a {
+.paper-progress-steps a,
+.paper-progress-steps button {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 12px;
   min-width: 0;
-  padding: 9px 10px;
+  padding: 12px;
+  border: 0;
   border-radius: 8px;
-  color: var(--muted);
-  font-size: 12px;
-  text-decoration: none;
-  background: rgba(255, 255, 255, 0.68);
-}
-.paper-progress-steps a.ready {
   color: #335932;
-  background: #e8f1e2;
+  font-size: 13px;
+  text-align: left;
+  text-decoration: none;
+  background: #edf3e9;
 }
-.paper-progress-index {
-  display: inline-grid;
-  place-items: center;
-  flex: 0 0 22px;
-  width: 22px;
-  height: 22px;
-  border: 1px solid currentColor;
-  border-radius: 50%;
-  font-size: 11px;
+.paper-progress-steps svg {
+  flex-shrink: 0;
 }
-.paper-progress-note {
-  margin: 12px 0 0;
+.paper-progress-steps b,
+.paper-progress-steps small {
+  display: block;
+}
+.paper-progress-steps small {
   color: var(--muted);
+  font-size: 11px;
+  margin-top: 4px;
+}
+.paper-progress-steps a:hover,
+.paper-progress-steps button:hover {
+  background: #e1ecdb;
+}
+.paper-facet-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  padding: 0 0 24px;
+}
+.paper-facet {
+  padding: 14px;
+  border-radius: 8px;
+  background: #f3f5ef;
+}
+.paper-facet h3 {
+  margin: 0 0 10px;
   font-size: 12px;
+  color: var(--muted);
+}
+.paper-facet .tag {
+  white-space: normal;
 }
 @media (max-width: 680px) {
   .paper-progress-steps {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .paper-facet-grid {
     grid-template-columns: 1fr;
-  }
-  .paper-progress-heading {
-    display: block;
-  }
-  .paper-progress-heading .muted {
-    display: block;
-    margin-top: 6px;
   }
 }
 .note-toc {

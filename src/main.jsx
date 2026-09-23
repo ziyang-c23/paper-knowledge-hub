@@ -33,7 +33,7 @@ import {
   LocateFixed,
 } from 'lucide-react';
 import seedData from './generated/public.json';
-import { normalizePaper, readingProgress } from './lib/knowledge.mjs';
+import { normalizePaper, readingContext } from './lib/knowledge.mjs';
 import {
   AssociationEditor,
   PaperEditor,
@@ -766,9 +766,8 @@ function PaperPage({ route, selected, toggle, notify, workspace, refresh }) {
     concepts = [...new Set(relations.flatMap((r) => [r.source, r.target]))].filter((id) =>
       data.concepts.some((c) => c.id === id),
     );
-  const progress = readingProgress(p, {
+  const reading = readingContext(p, {
     documents: workspace?.documents || [],
-    evidence,
     topics: data.topics,
   });
   const cite = `${p.authors.join(', ')} (${p.year}). ${p.title}. ${p.url}`;
@@ -867,39 +866,64 @@ function PaperPage({ route, selected, toggle, notify, workspace, refresh }) {
           证据与来源
         </a>
       </nav>
-      <section className="paper-progress" aria-label="论文阅读进度">
-        <div className="paper-progress-heading">
-          <div>
-            <span className="eyebrow">READING PATH</span>
-            <h2>从收录到可比较</h2>
-          </div>
-          <span className="muted">当前阶段：{progress.steps[progress.current].label}</span>
-        </div>
+      <section className="paper-progress" aria-label="论文阅读工作流">
         <div className="paper-progress-steps">
-          {progress.steps.map((step, index) => {
-            const target =
-              step.id === 'source'
-                ? '#/paper/' + p.id + '?mode=source'
-                : step.id === 'evidence'
-                  ? '#/paper/' +
-                    p.id +
-                    (progress.verifiedEvidence
-                      ? '?evidence=' + evidence.find((e) => e.status === 'verified')?.id
-                      : '')
-                  : step.id === 'comparison'
-                    ? '#/compare?ids=' + p.id
-                    : '#/paper/' + p.id;
-            return (
-              <a className={step.ready ? 'ready' : ''} href={target} key={step.id}>
-                <span className="paper-progress-index">{step.ready ? '✓' : index + 1}</span>
-                <span>{step.label}</span>
-              </a>
-            );
-          })}
+          <a href={link('/paper/' + p.id, { mode: 'source' })}>
+            <FileText size={18} />
+            <span>
+              <b>对照原文</b>
+              <small>
+                {reading.documentCount ? `${reading.documentCount} 份本地全文` : '外部原文入口'}
+              </small>
+            </span>
+          </a>
+          <button
+            onClick={() => {
+              setReadingMode('note');
+              requestAnimationFrame(() =>
+                document.getElementById('paper-note')?.scrollIntoView({ block: 'start' }),
+              );
+            }}
+          >
+            <BookOpen size={18} />
+            <span>
+              <b>阅读笔记</b>
+              <small>{reading.hasNote ? '已保存笔记' : '尚未整理'}</small>
+            </span>
+          </button>
+          <button
+            onClick={() =>
+              document.getElementById('paper-config')?.scrollIntoView({ block: 'start' })
+            }
+          >
+            <Layers size={18} />
+            <span>
+              <b>研究配置</b>
+              <small>
+                {reading.facetCount ? `${reading.facetCount} 个已整理维度` : '尚未分类'}
+              </small>
+            </span>
+          </button>
+          <a
+            href={
+              reading.topics.length === 1
+                ? link('/topic/' + reading.topics[0].id)
+                : reading.topics.length
+                  ? '#/topics'
+                  : workspace
+                    ? link('/edit/' + p.id)
+                    : '#/topics'
+            }
+          >
+            <Columns3 size={18} />
+            <span>
+              <b>专题比较</b>
+              <small>
+                {reading.topics.length ? `${reading.topics.length} 个关联专题` : '选择研究专题'}
+              </small>
+            </span>
+          </a>
         </div>
-        <p className="paper-progress-note">
-          进度由现有文档、结构化笔记、已核验证据和专题比较自动推导；缺失项直接指向下一步整理动作。
-        </p>
       </section>
       {readingMode === 'source' && (
         <>
@@ -964,37 +988,38 @@ function PaperPage({ route, selected, toggle, notify, workspace, refresh }) {
               ))}
             </details>
           </section>
-          {Object.entries(p.facets || {}).some(([, ids]) => ids?.length) && (
-            <section className="panel paper-facets">
-              <div className="section-heading">
-                <div>
-                  <h2>研究配置</h2>
-                  <p className="muted">
-                    论文直接关联的对象；点击可回到方法、数据、任务或问题档案。
-                  </p>
-                </div>
-                <Badge>结构化索引</Badge>
+          <section id="paper-config" className="panel paper-facets">
+            <div className="section-heading">
+              <div>
+                <h2>研究配置</h2>
+                <p className="muted">论文直接关联的对象；点击可回到方法、数据、任务或问题档案。</p>
               </div>
-              <div className="paper-facet-grid">
-                {Object.entries(dimensions).map(([dimension, label]) => {
-                  const ids = p.facets?.[dimension] || [];
-                  if (!ids.length) return null;
-                  return (
-                    <div className="paper-facet" key={dimension}>
-                      <h3>{label}</h3>
-                      <div className="tags">
-                        {ids.map((id) => (
-                          <a className="tag" href={entityLink(id)} key={id}>
-                            {title(id)}
-                          </a>
-                        ))}
-                      </div>
+              {workspace && (
+                <a className="button small" href={link('/edit/' + p.id)}>
+                  整理配置
+                </a>
+              )}
+            </div>
+            <div className="paper-facet-grid">
+              {Object.entries(dimensions).map(([dimension, label]) => {
+                const ids = p.facets?.[dimension] || [];
+
+                return (
+                  <div className="paper-facet" key={dimension}>
+                    <h3>{label}</h3>
+                    <div className="tags">
+                      {!ids.length && <span className="muted">未整理</span>}
+                      {ids.map((id) => (
+                        <a className="tag" href={entityLink(id)} key={id}>
+                          {title(id)}
+                        </a>
+                      ))}
                     </div>
-                  );
-                })}
-              </div>
-            </section>
-          )}
+                  </div>
+                );
+              })}
+            </div>
+          </section>
           {workspace && p.personalAnalysis && (
             <section className="panel padded">
               <details>
@@ -1004,7 +1029,7 @@ function PaperPage({ route, selected, toggle, notify, workspace, refresh }) {
               </details>
             </section>
           )}
-          <section className="panel note-panel" hidden={readingMode === 'source'}>
+          <section id="paper-note" className="panel note-panel" hidden={readingMode === 'source'}>
             <div className="section-heading">
               <h2>阅读笔记</h2>
               <Badge>Markdown</Badge>

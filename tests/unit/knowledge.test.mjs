@@ -6,7 +6,7 @@ import {
   graphNeighborhood,
   comparisonMarkdown,
   statistics,
-  readingProgress,
+  readingContext,
 } from '../../src/lib/knowledge.mjs';
 import { emptyData, validateData, publicProjection } from '../../scripts/data.mjs';
 export function fixture() {
@@ -265,21 +265,28 @@ test('minimal schema-valid topics get safe browser rendering defaults', () => {
   assert.deepEqual(t.questions, []);
   assert.equal(t.description, '');
 });
-test('reading progress derives the next research action from existing records', () => {
+test('reading context distinguishes an external URL from attached full text and reading quality', () => {
   const paper = {
     id: 'paper-a',
     url: 'https://example.org/a',
-    note: '## Problem\n\n## Method\n\n## Results',
+    note: 'A short note',
+    facets: { learning: ['method-a'] },
+    topics: ['topic-a', 'archived'],
   };
-  const progress = readingProgress(paper, {
-    documents: [{ paperId: 'paper-a' }],
-    evidence: [{ paperId: 'paper-a', status: 'verified' }],
-    topics: [{ compareIds: ['paper-a'] }],
+  const context = readingContext(paper, {
+    documents: [{ paperId: 'paper-b' }],
+    topics: [{ id: 'topic-a' }, { id: 'archived', lifecycle: 'archived' }, { id: 'unrelated' }],
   });
+  assert.equal(context.documentCount, 0);
+  assert.equal(context.hasNote, true);
+  assert.equal(context.facetCount, 1);
   assert.deepEqual(
-    progress.steps.map((step) => step.ready),
-    [true, true, false, true, true],
+    context.topics.map((t) => t.id),
+    ['topic-a'],
   );
-  assert.equal(progress.current, 4);
-  assert.equal(progress.verifiedEvidence, 1);
+  assert.equal(
+    readingContext({ ...paper, note: '  ' }, { documents: [{ paperId: paper.id }] }).hasNote,
+    false,
+  );
+  assert.equal(readingContext(paper, { documents: [{ paperId: paper.id }] }).documentCount, 1);
 });

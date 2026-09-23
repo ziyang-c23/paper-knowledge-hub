@@ -268,10 +268,7 @@ function EntityCollection({ dataset, route, readOnly }) {
                     {entity.description || '尚未填写简介，可打开档案补充。'}
                   </p>
                   <div className="entity-card-bottom">
-                    <span>{connections.evidencePapers.length} 篇有关系回查</span>
-                    <span>{connections.taxonomyPapers.length} 篇分类命中</span>
-                    <span>{connections.incoming.length} 条反向引用</span>
-                    <span>{entity.sources?.length || 0} 个来源</span>
+                    <span>{connections.papers.length} 篇关联论文</span>
                   </div>
                 </div>
               </article>
@@ -308,7 +305,8 @@ function EntityDetail({ dataset, entity, Md, readOnly }) {
       <header className="entity-heading">
         <div>
           <div className="entity-eyebrow">
-            {entityKinds[effectiveKind]} · {entity.lifecycle === 'archived' ? '已归档' : '本地档案'}
+            {entityKinds[effectiveKind]} ·{' '}
+            {entity.lifecycle === 'archived' ? '已归档' : readOnly ? '公开档案' : '本地档案'}
           </div>
           <h1>{entity.title}</h1>
           <p>{(entity.aliases || []).join(' · ') || '暂无别名'}</p>
@@ -347,22 +345,28 @@ function EntityDetail({ dataset, entity, Md, readOnly }) {
               </a>
             )}
           </section>
-          <section className="entity-section">
-            <h2>研究档案</h2>
-            <small className="entity-muted">本地整理内容 · 不自动进入公开投影</small>
-            {entity.note ? (
-              <Md>{entity.note}</Md>
-            ) : (
+          {(!readOnly || entity.note) && (
+            <section className="entity-section">
+              <h2>研究档案</h2>
+              <small className="entity-muted">本地整理内容 · 不自动进入公开投影</small>
+              {entity.note ? (
+                <Md>{entity.note}</Md>
+              ) : (
+                <p className="entity-muted">
+                  可记录身份消歧、代表贡献、研究脉络与待核实问题。没有资料的内容保持未知。
+                </p>
+              )}
+            </section>
+          )}
+          {(!readOnly || entity.sources?.length) && (
+            <section className="entity-section">
+              <h2>资料来源 · {entity.sources?.length || 0}</h2>
               <p className="entity-muted">
-                可记录身份消歧、代表贡献、研究脉络与待核实问题。没有资料的内容保持未知。
+                用于回查整理依据；链接存在不等于任职、贡献等主张已核验。
               </p>
-            )}
-          </section>
-          <section className="entity-section">
-            <h2>资料来源 · {entity.sources?.length || 0}</h2>
-            <p className="entity-muted">用于回查整理依据；链接存在不等于任职、贡献等主张已核验。</p>
-            <SourceList sources={entity.sources} />
-          </section>
+              <SourceList sources={entity.sources} />
+            </section>
+          )}
           <section className="entity-section">
             <h2>关联论文 · {papers.length}</h2>
             <p className="entity-muted">
@@ -376,7 +380,11 @@ function EntityDetail({ dataset, entity, Md, readOnly }) {
                   {p.title}
                   <small>
                     {p.year} ·{' '}
-                    {evidencePapers.some((item) => item.id === p.id) ? '有关系回查' : '分类命中'}
+                    {evidencePapers.some((item) => item.id === p.id)
+                      ? '已核验关系'
+                      : taxonomyPapers.some((item) => item.id === p.id)
+                        ? '分类关联'
+                        : '手工关联'}
                   </small>
                 </span>
               </a>
@@ -446,7 +454,7 @@ function EntityDetail({ dataset, entity, Md, readOnly }) {
                   return (
                     e && (
                       <a key={id} href={'#/paper/' + e.paperId + '?evidence=' + id}>
-                        查看依据：{id}
+                        查看原文依据
                       </a>
                     )
                   );
