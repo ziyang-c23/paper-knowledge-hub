@@ -145,7 +145,7 @@ export function AppShell({
           <span className="local-dot" />
           {workspace ? '本地空间' : '公开阅读空间'}
           <p>
-            {dataset.papers.length} 篇论文 · {dataset.concepts.length} 个实体
+            {dataset.papers.length} 篇论文 · {dataset.concepts.length} 个研究对象
           </p>
           {workspace && (
             <button className="text-button" onClick={() => refresh().catch(() => {})}>
@@ -211,7 +211,7 @@ export function AppShell({
                 items={[
                   ['#/library', '阅读桌'],
                   ...(workspace ? [['#/database', '论文表格']] : []),
-                  ['#/entities', '研究实体'],
+                  ['#/entities', '研究对象'],
                 ]}
               />
             )}
@@ -267,7 +267,7 @@ export function AppShell({
             <p className="muted">先记录，再逐步补充来源、理解与联系。</p>
             {[
               ['/edit/new', '论文与阅读笔记', '记录一篇论文，或导入已有笔记', FileText],
-              ['/entities?create=1', '研究实体', '学者、机构、方法、模型与数据集', Network],
+              ['/entities?create=1', '研究对象', '人物、方法、数据、任务、概念与开放问题', Network],
               ['/associations?collection=topics', '研究专题', '围绕一个问题组织材料', Layers],
               ['/drafts', 'AI 整理草稿', '导入 Agent 产物，审阅后应用', Inbox],
             ].map(([url, name, desc, Icon]) => (

@@ -12,6 +12,35 @@ export function normalizePaper(p) {
     ...p,
   };
 }
+
+/**
+ * Derive the small, user-facing reading path from existing records.
+ * It deliberately does not add status fields to the paper schema: each step
+ * is a deterministic view over the paper, attached documents, evidence and
+ * topic comparison records.
+ */
+export function readingProgress(paper, { documents = [], evidence = [], topics = [] } = {}) {
+  const paperEvidence = evidence.filter((item) => item.paperId === paper.id);
+  const hasDocument = documents.some((item) => item.paperId === paper.id);
+  const headings = String(paper.note || '').match(/^#{2,3}\s+.+$/gm) || [];
+  const structuredNote = headings.length >= 6;
+  const verifiedEvidence = paperEvidence.some((item) => item.status === 'verified');
+  const inComparison = topics.some((topic) => (topic.compareIds || []).includes(paper.id));
+  const steps = [
+    { id: 'catalogued', label: '已收录', ready: Boolean(paper.id) },
+    { id: 'source', label: '原文入口', ready: hasDocument || Boolean(paper.url) },
+    { id: 'note', label: '结构化笔记', ready: structuredNote },
+    { id: 'evidence', label: '有核验依据', ready: verifiedEvidence },
+    { id: 'comparison', label: '进入比较', ready: inComparison },
+  ];
+  let current = 0;
+  for (const [index, step] of steps.entries()) if (step.ready) current = index;
+  return {
+    steps,
+    current,
+    verifiedEvidence: paperEvidence.filter((e) => e.status === 'verified').length,
+  };
+}
 export function normalizeText(value) {
   return String(value ?? '')
     .normalize('NFKC')

@@ -6,6 +6,7 @@ import {
   graphNeighborhood,
   comparisonMarkdown,
   statistics,
+  readingProgress,
 } from '../../src/lib/knowledge.mjs';
 import { emptyData, validateData, publicProjection } from '../../scripts/data.mjs';
 export function fixture() {
@@ -150,6 +151,21 @@ test('schema errors provide context for duplicates, refs, enums, arxiv versions'
   assert.match(errors, /unknown topic/);
   assert.match(errors, /allowed values/);
 });
+test('entity kind dimensions reject semantically incompatible records', () => {
+  const d = fixture();
+  d.concepts.push({
+    schemaVersion: 1,
+    id: 'task-a',
+    title: 'Task A',
+    kind: 'task',
+    dimension: 'environment',
+    visibility: 'public',
+  });
+  const errors = validateData(d).join('\n');
+  assert.match(errors, /dimension environment is not valid for kind task/);
+  d.concepts[d.concepts.length - 1].dimension = 'task';
+  assert.doesNotMatch(validateData(d).join('\n'), /task-a: dimension/);
+});
 test('comparison unknown stays unknown; deterministic counts exclude private papers', () => {
   const d = fixture();
   assert.match(comparisonMarkdown(d.papers.slice(0, 2), ['method']), /未知/);
@@ -248,4 +264,22 @@ test('minimal schema-valid topics get safe browser rendering defaults', () => {
   assert.deepEqual(t.branches, []);
   assert.deepEqual(t.questions, []);
   assert.equal(t.description, '');
+});
+test('reading progress derives the next research action from existing records', () => {
+  const paper = {
+    id: 'paper-a',
+    url: 'https://example.org/a',
+    note: '## Problem\n\n## Method\n\n## Results',
+  };
+  const progress = readingProgress(paper, {
+    documents: [{ paperId: 'paper-a' }],
+    evidence: [{ paperId: 'paper-a', status: 'verified' }],
+    topics: [{ compareIds: ['paper-a'] }],
+  });
+  assert.deepEqual(
+    progress.steps.map((step) => step.ready),
+    [true, true, false, true, true],
+  );
+  assert.equal(progress.current, 4);
+  assert.equal(progress.verifiedEvidence, 1);
 });

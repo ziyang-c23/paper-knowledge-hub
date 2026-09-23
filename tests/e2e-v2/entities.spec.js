@@ -52,8 +52,8 @@ test('scholar and institution creation, sources, paper links, backlinks and rena
     .getByLabel('简介', { exact: true })
     .fill('Synthetic institution used only to test research-entity maintenance.');
   await save(page);
-  await page.getByRole('link', { name: '研究实体', exact: true }).last().click();
-  await page.getByRole('link', { name: '新建实体', exact: true }).click();
+  await page.getByRole('link', { name: '研究对象', exact: true }).last().click();
+  await page.getByRole('link', { name: '新建对象', exact: true }).click();
   await page.getByLabel('实体名称', { exact: true }).fill('Synthetic Scholar');
   await page.getByLabel('稳定 ID', { exact: true }).fill('entity-test-scholar');
   await page.getByLabel('别名（每行一个）').fill('合成学者\nSynthetic S.');
@@ -117,7 +117,7 @@ test('archive, filter by type, restore and mobile catalog use the same stable en
   ).toBe('active');
   await page.setViewportSize({ width: 390, height: 844 });
   await go(page);
-  await page.getByLabel('搜索研究实体').fill('Synthetic');
+  await page.getByLabel('搜索研究对象').fill('Synthetic');
   await expect(
     page.getByRole('link', { name: 'Synthetic Research Project', exact: true }),
   ).toBeVisible();
@@ -182,4 +182,24 @@ test('new entity never overwrites an existing ID and the ID new remains a usable
   expect((await state(request)).dataset.concepts.find((e) => e.id === 'new').note).toBe(
     'KEEP ORIGINAL',
   );
+});
+
+test('research object groups keep methods separate from data and question records', async ({
+  page,
+}) => {
+  await go(page, 'entities?create=1');
+  await page.getByLabel('实体名称', { exact: true }).fill('Synthetic Method');
+  await page.getByLabel('实体类型', { exact: true }).selectOption('method');
+  await page.getByLabel('稳定 ID', { exact: true }).fill('entity-test-method');
+  await save(page);
+  await go(page, 'entities?group=methods');
+  await expect(page.getByRole('tab', { name: /方法与模型/ })).toHaveAttribute(
+    'aria-selected',
+    'true',
+  );
+  await expect(page.getByRole('link', { name: 'Synthetic Method', exact: true })).toBeVisible();
+  await page.getByRole('tab', { name: /数据与评测/ }).click();
+  await expect(page.getByRole('link', { name: 'Synthetic Method', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('link', { name: 'Open X-Embodiment', exact: true })).toBeVisible();
+  await expect(page).toHaveURL(/group=data/);
 });

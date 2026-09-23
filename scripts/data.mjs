@@ -2,6 +2,7 @@ import { readFile, readdir, mkdir, writeFile, rename } from 'node:fs/promises';
 import path from 'node:path';
 import Ajv from 'ajv';
 import { normalizePaper } from '../src/lib/knowledge.mjs';
+import { entityDimensions } from '../src/lib/entities.mjs';
 export const collections = ['papers', 'topics', 'concepts', 'relations', 'evidence'];
 const schema = JSON.parse(
   await readFile(new URL('../schemas/dataset.schema.json', import.meta.url), 'utf8'),
@@ -94,6 +95,15 @@ export function validateData(data) {
           errors.push(`papers/${p.id}: invalid claim evidence ${id}`);
   }
   for (const entity of data.concepts) {
+    const allowedDimensions = entityDimensions[entity?.kind];
+    if (
+      entity?.dimension !== undefined &&
+      Array.isArray(allowedDimensions) &&
+      !allowedDimensions.includes(entity.dimension)
+    )
+      errors.push(
+        `concepts/${entity.id}: dimension ${entity.dimension} is not valid for kind ${entity.kind}`,
+      );
     for (const id of Array.isArray(entity?.relatedIds) ? entity.relatedIds : [])
       if (id === entity.id || !entities.has(id))
         errors.push(`concepts/${entity.id}: invalid related entity ${id}`);

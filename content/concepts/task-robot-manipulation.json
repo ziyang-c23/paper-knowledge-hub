@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "task-robot-manipulation",
   "title": "机器人操作",
-  "kind": "concept",
+  "kind": "task",
   "visibility": "public",
   "demo": true,
   "description": "本例包含物体抓取/移动等操作；不说明所有任务设置一致。",

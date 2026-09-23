@@ -17,7 +17,14 @@ import {
   X,
 } from 'lucide-react';
 import { workspaceRequest, dimensions } from './workspace.jsx';
-import { entityKinds, entityConnections, entityExport } from './lib/entities.mjs';
+import {
+  entityKinds,
+  entityGroups,
+  entityDimensions,
+  effectiveEntityKind,
+  entityConnections,
+  entityExport,
+} from './lib/entities.mjs';
 import './entities.css';
 const routeTo = (id, dataset) =>
   dataset.papers.some((p) => p.id === id)
@@ -81,20 +88,32 @@ export function EntitiesPage({ workspace, route, refresh, notify, Md }) {
 function EntityCollection({ dataset, route, readOnly }) {
   const q = route.params.get('q') || '',
     kind = route.params.get('kind') || '',
+    groupParam = route.params.get('group'),
     archived = route.params.get('archived') === '1',
     layout = route.params.get('layout') || 'gallery';
-  const set = (key, value) => {
+  const kindGroup = entityGroups.find((item) => item.kinds.includes(kind)),
+    selectedGroup =
+      groupParam === 'all'
+        ? undefined
+        : entityGroups.find((item) => item.id === groupParam) || kindGroup,
+    visibleKinds = selectedGroup?.kinds || Object.keys(entityKinds);
+  const inGroup = (entity, kinds = visibleKinds) => kinds.includes(effectiveEntityKind(entity));
+  const setMany = (updates) => {
     const params = new URLSearchParams(route.params);
-    if (value) params.set(key, value);
-    else params.delete(key);
+    Object.entries(updates).forEach(([key, value]) => {
+      if (value) params.set(key, value);
+      else params.delete(key);
+    });
     history.replaceState(null, '', '#/entities?' + params);
     dispatchEvent(new HashChangeEvent('hashchange'));
   };
+  const set = (key, value) => setMany({ [key]: value });
   const entities = dataset.concepts
     .filter(
       (e) =>
         (archived || e.lifecycle !== 'archived') &&
-        (!kind || e.kind === kind) &&
+        inGroup(e) &&
+        (!kind || effectiveEntityKind(e) === kind) &&
         (!q ||
           [e.title, ...(e.aliases || []), e.description || '']
             .join(' ')
@@ -110,40 +129,81 @@ function EntityCollection({ dataset, route, readOnly }) {
           <div className="entity-eyebrow">
             <Network size={17} /> RESEARCH DIRECTORY
           </div>
-          <h1>研究实体</h1>
-          <p>从研究者和团队，到方法、数据与待解问题。每个实体拥有独立档案与可回查的联系。</p>
+          <h1>研究对象</h1>
+          <p>
+            先按对象职责进入，再查看跨论文联系。人物、方法、数据、任务、概念与开放问题拥有不同的档案语义，关系在论文上下文中回查。
+          </p>
         </div>
         <a hidden={readOnly} className="button primary" href="#/entities?create=1">
-          <Plus size={16} /> 新建实体
+          <Plus size={16} /> 新建对象
         </a>
       </header>
-      <div className="entity-kinds" role="group" aria-label="实体类型筛选">
-        <button className={!kind ? 'selected' : ''} onClick={() => set('kind', '')}>
-          全部{' '}
-          <b>{dataset.concepts.filter((e) => archived || e.lifecycle !== 'archived').length}</b>
+      <div className="entity-groups" role="tablist" aria-label="研究对象分组">
+        <button
+          role="tab"
+          aria-selected={groupParam === 'all' || (!groupParam && !kind)}
+          className={groupParam === 'all' || (!groupParam && !kind) ? 'selected' : ''}
+          onClick={() => setMany({ group: 'all', kind: '' })}
+        >
+          跨域索引
         </button>
-        {Object.entries(entityKinds).map(([key, label]) => (
+        {entityGroups.map((item) => (
           <button
-            key={key}
-            className={kind === key ? 'selected' : ''}
-            onClick={() => set('kind', key)}
+            role="tab"
+            aria-selected={selectedGroup?.id === item.id}
+            className={selectedGroup?.id === item.id ? 'selected' : ''}
+            key={item.id}
+            onClick={() => setMany({ group: item.id, kind: item.kinds.includes(kind) ? kind : '' })}
           >
-            {label}
+            {item.label}
             <b>
               {
                 dataset.concepts.filter(
-                  (e) => e.kind === key && (archived || e.lifecycle !== 'archived'),
+                  (e) => inGroup(e, item.kinds) && (archived || e.lifecycle !== 'archived'),
                 ).length
               }
             </b>
           </button>
         ))}
       </div>
+      <p className="entity-group-description">
+        {selectedGroup?.description || '仅用于跨对象回查；日常整理建议进入一个明确的对象分组。'}
+      </p>
+      <div className="entity-kinds" role="group" aria-label="实体类型筛选">
+        <button className={!kind ? 'selected' : ''} onClick={() => set('kind', '')}>
+          分组内全部{' '}
+          <b>
+            {
+              dataset.concepts.filter((e) => inGroup(e) && (archived || e.lifecycle !== 'archived'))
+                .length
+            }
+          </b>
+        </button>
+        {Object.entries(entityKinds)
+          .filter(([key]) => visibleKinds.includes(key))
+          .map(([key, label]) => (
+            <button
+              key={key}
+              className={kind === key ? 'selected' : ''}
+              onClick={() => set('kind', key)}
+            >
+              {label}
+              <b>
+                {
+                  dataset.concepts.filter(
+                    (e) =>
+                      effectiveEntityKind(e) === key && (archived || e.lifecycle !== 'archived'),
+                  ).length
+                }
+              </b>
+            </button>
+          ))}
+      </div>
       <div className="entity-toolbar">
         <label>
           <Search size={17} />
           <input
-            aria-label="搜索研究实体"
+            aria-label="搜索研究对象"
             placeholder="搜索名称、别名或简介…"
             value={q}
             onChange={(e) => set('q', e.target.value)}
@@ -181,20 +241,21 @@ function EntityCollection({ dataset, route, readOnly }) {
         <div className={'entity-collection ' + layout}>
           {entities.map((entity) => {
             const connections = entityConnections(dataset, entity.id),
+              effectiveKind = effectiveEntityKind(entity),
               Icon =
-                entity.kind === 'person'
+                effectiveKind === 'person'
                   ? Users
-                  : entity.kind === 'institution'
+                  : effectiveKind === 'institution'
                     ? Building2
                     : Network;
             return (
               <article className="entity-card" key={entity.id}>
-                <div className={'entity-icon ' + entity.kind}>
+                <div className={'entity-icon ' + effectiveKind}>
                   <Icon size={23} />
                 </div>
                 <div className="entity-card-body">
                   <div className="entity-card-type">
-                    {entityKinds[entity.kind]}
+                    {entityKinds[effectiveKind]}
                     {entity.lifecycle === 'archived' && ' · 已归档'}
                   </div>
                   <a href={'#/entities/' + entity.id}>
@@ -207,7 +268,8 @@ function EntityCollection({ dataset, route, readOnly }) {
                     {entity.description || '尚未填写简介，可打开档案补充。'}
                   </p>
                   <div className="entity-card-bottom">
-                    <span>{connections.papers.length} 篇关联论文</span>
+                    <span>{connections.evidencePapers.length} 篇有关系回查</span>
+                    <span>{connections.taxonomyPapers.length} 篇分类命中</span>
                     <span>{connections.incoming.length} 条反向引用</span>
                     <span>{entity.sources?.length || 0} 个来源</span>
                   </div>
@@ -222,7 +284,7 @@ function EntityCollection({ dataset, route, readOnly }) {
           <h2>这里还没有符合条件的实体</h2>
           <p>可以调整筛选，或从一个学者、团队、模型或研究问题开始。</p>
           <a hidden={readOnly} className="button primary" href="#/entities?create=1">
-            新建实体档案
+            新建对象档案
           </a>
         </div>
       )}
@@ -230,8 +292,10 @@ function EntityCollection({ dataset, route, readOnly }) {
   );
 }
 function EntityDetail({ dataset, entity, Md, readOnly }) {
-  const { outgoing, incoming, papers, relations } = entityConnections(dataset, entity.id),
-    all = [...dataset.papers, ...dataset.topics, ...dataset.concepts];
+  const { outgoing, incoming, papers, taxonomyPapers, evidencePapers, relations } =
+      entityConnections(dataset, entity.id),
+    all = [...dataset.papers, ...dataset.topics, ...dataset.concepts],
+    effectiveKind = effectiveEntityKind(entity);
   return (
     <div className="entities-page">
       <a
@@ -239,12 +303,12 @@ function EntityDetail({ dataset, entity, Md, readOnly }) {
         href={sessionStorage.getItem('pkh-entities-route') || '#/entities'}
       >
         <ArrowLeft size={15} />
-        研究实体
+        研究对象
       </a>
       <header className="entity-heading">
         <div>
           <div className="entity-eyebrow">
-            {entityKinds[entity.kind]} · {entity.lifecycle === 'archived' ? '已归档' : '本地档案'}
+            {entityKinds[effectiveKind]} · {entity.lifecycle === 'archived' ? '已归档' : '本地档案'}
           </div>
           <h1>{entity.title}</h1>
           <p>{(entity.aliases || []).join(' · ') || '暂无别名'}</p>
@@ -266,13 +330,13 @@ function EntityDetail({ dataset, entity, Md, readOnly }) {
         <div className="entity-main">
           <section className="entity-section">
             <h2>
-              {entity.kind === 'person'
+              {effectiveKind === 'person'
                 ? '身份与研究方向'
-                : entity.kind === 'institution'
+                : effectiveKind === 'institution'
                   ? '团队与研究方向'
-                  : ['model', 'method'].includes(entity.kind)
+                  : ['model', 'method'].includes(effectiveKind)
                     ? '机制与适用问题'
-                    : ['dataset', 'environment', 'benchmark'].includes(entity.kind)
+                    : ['dataset', 'environment', 'benchmark'].includes(effectiveKind)
                       ? '任务与使用范围'
                       : '简介与研究关注'}
             </h2>
@@ -301,13 +365,18 @@ function EntityDetail({ dataset, entity, Md, readOnly }) {
           </section>
           <section className="entity-section">
             <h2>关联论文 · {papers.length}</h2>
+            <p className="entity-muted">
+              {taxonomyPapers.length} 篇分类命中 · {evidencePapers.length}{' '}
+              篇有关系回查；分类命中不等于论文明确采用或评测。
+            </p>
             {papers.map((p) => (
               <a className="entity-record-link" key={p.id} href={'#/paper/' + p.id}>
                 <FileText size={17} />
                 <span>
                   {p.title}
                   <small>
-                    {p.year} · {p.lifecycle === 'archived' ? '已归档' : '论文记录'}
+                    {p.year} ·{' '}
+                    {evidencePapers.some((item) => item.id === p.id) ? '有关系回查' : '分类命中'}
                   </small>
                 </span>
               </a>
@@ -419,7 +488,8 @@ function EntityEditor({ existing, missing, workspace, refresh, notify, Md }) {
   const dirty = baseline !== JSON.stringify(record),
     leaving = useRef(false),
     inFlight = useRef(false),
-    dataset = workspace.dataset;
+    dataset = workspace.dataset,
+    allowedDimensions = entityDimensions[record.kind] || [];
   const change = (key, value) => {
     setRecord((r) => ({ ...r, [key]: value }));
     setConsent(false);
@@ -453,7 +523,10 @@ function EntityEditor({ existing, missing, workspace, refresh, notify, Md }) {
       </div>
     );
   const choices = [
-    ...dataset.concepts.map((e) => ({ ...e, label: entityKinds[e.kind] })),
+    ...dataset.concepts.map((e) => ({
+      ...e,
+      label: entityKinds[effectiveEntityKind(e)] || entityKinds[e.kind],
+    })),
     ...dataset.papers.map((e) => ({ ...e, label: '论文' })),
     ...dataset.topics.map((e) => ({ ...e, label: '专题' })),
   ].filter(
@@ -549,7 +622,7 @@ function EntityEditor({ existing, missing, workspace, refresh, notify, Md }) {
       <header className="entity-heading">
         <div>
           <div className="entity-eyebrow">ENTITY EDITOR</div>
-          <h1>{existing ? '编辑实体档案' : '新建研究实体'}</h1>
+          <h1>{existing ? '编辑对象档案' : '新建研究对象'}</h1>
           <p>先明确对象身份，再补来源和关联。未知信息可以留空。</p>
         </div>
         <button
@@ -590,7 +663,16 @@ function EntityEditor({ existing, missing, workspace, refresh, notify, Md }) {
                   <select
                     aria-label="实体类型"
                     value={record.kind}
-                    onChange={(e) => change('kind', e.target.value)}
+                    onChange={(e) => {
+                      const kind = e.target.value;
+                      setRecord((current) => {
+                        const next = { ...current, kind };
+                        if (next.dimension && !entityDimensions[kind]?.includes(next.dimension))
+                          delete next.dimension;
+                        return next;
+                      });
+                      setConsent(false);
+                    }}
                   >
                     {Object.entries(entityKinds).map(([key, label]) => (
                       <option key={key} value={key}>
@@ -628,27 +710,33 @@ function EntityEditor({ existing, missing, workspace, refresh, notify, Md }) {
                     onChange={(e) => change('aliases', e.target.value.split('\n'))}
                   />
                 </label>
-                <label>
-                  分类维度
-                  <select
-                    aria-label="分类维度"
-                    value={record.dimension || ''}
-                    onChange={(e) => {
-                      const next = { ...record };
-                      if (e.target.value) next.dimension = e.target.value;
-                      else delete next.dimension;
-                      setRecord(next);
-                      setConsent(false);
-                    }}
-                  >
-                    <option value="">不作为论文分类维度</option>
-                    {Object.entries(dimensions).map(([key, label]) => (
-                      <option key={key} value={key}>
-                        {label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+                {allowedDimensions.length > 0 ? (
+                  <label>
+                    分类维度
+                    <select
+                      aria-label="分类维度"
+                      value={record.dimension || ''}
+                      onChange={(e) => {
+                        const next = { ...record };
+                        if (e.target.value) next.dimension = e.target.value;
+                        else delete next.dimension;
+                        setRecord(next);
+                        setConsent(false);
+                      }}
+                    >
+                      <option value="">不作为论文分类维度</option>
+                      {allowedDimensions.map((key) => (
+                        <option key={key} value={key}>
+                          {dimensions[key]}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                ) : (
+                  <p className="entity-field-hint">
+                    人物、机构和项目只维护身份档案，不作为论文分类维度。
+                  </p>
+                )}
                 <label className="wide">
                   简介
                   <textarea
@@ -663,7 +751,7 @@ function EntityEditor({ existing, missing, workspace, refresh, notify, Md }) {
                   已有同名或同别名实体：
                   {duplicates.map((e) => (
                     <a key={e.id} href={'#/entities/' + e.id}>
-                      {e.title}（{entityKinds[e.kind]}）{' '}
+                      {e.title}（{entityKinds[effectiveEntityKind(e)] || entityKinds[e.kind]}）{' '}
                     </a>
                   ))}
                   。请检查身份；同名不会自动合并。

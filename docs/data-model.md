@@ -16,13 +16,13 @@ private/workspace.json
 
 API 返回的 dataset.scope='local' 只是运行时视图标记，不写入 schema 数据。每次修改完整 dataset 校验后原子替换，revision 冲突返回 409。字段定义与枚举以 schema 为准。
 
-| 对象 | 必需字段 | 主要可选字段 |
-|---|---|---|
-| Paper | schemaVersion,id,title,year,authors,url,visibility | note、abstract、阅读状态、topics/tags/aliases、书目标识、比较字段；lifecycle、personalAnalysis、facets、claimEvidence |
-| Topic | schemaVersion,id,title,visibility | 范围、维度、问题、边界；analysis、gaps、evidenceIds、compareIds |
-| Concept / research entity | schemaVersion,id,title,kind,visibility | description、aliases、dimension、lifecycle、note、relatedIds、sources |
-| Evidence | schemaVersion,id,paperId,kind,text,status,visibility | url、locator；本地 documentId、pageIndex、pageLabel、quote |
-| Relation | schemaVersion,id,source,target,type,evidenceIds,origin,status,visibility | demo 仅作原模板标识 |
+| 对象            | 必需字段                                                                 | 主要可选字段                                                                                                          |
+| --------------- | ------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------- |
+| Paper           | schemaVersion,id,title,year,authors,url,visibility                       | note、abstract、阅读状态、topics/tags/aliases、书目标识、比较字段；lifecycle、personalAnalysis、facets、claimEvidence |
+| Topic           | schemaVersion,id,title,visibility                                        | 范围、维度、问题、边界；analysis、gaps、evidenceIds、compareIds                                                       |
+| Research object | schemaVersion,id,title,kind,visibility                                   | description、aliases、dimension、lifecycle、note、relatedIds、sources                                                 |
+| Evidence        | schemaVersion,id,paperId,kind,text,status,visibility                     | url、locator；本地 documentId、pageIndex、pageLabel、quote                                                            |
+| Relation        | schemaVersion,id,source,target,type,evidenceIds,origin,status,visibility | demo 仅作原模板标识                                                                                                   |
 
 ID 为最长 120 的 `[a-z0-9]+(?:-[a-z0-9]+)*`，跨对象全局唯一。旧 content 的文件名必须等于 ID；本地主库中以记录 ID 引用。论文 DOI 去 URL 前缀并小写，arXiv 去版本做身份去重；版本信息另存。同规范化题名的新 ID 也被本地写入层拒绝。author 数组可以暂空，缺失可选字段表示未知，不推断为 false。
 
@@ -32,12 +32,16 @@ ID 为最长 120 的 `[a-z0-9]+(?:-[a-z0-9]+)*`，跨对象全局唯一。旧 co
 - lifecycle：draft/active/archived，未设置的旧论文兼容为 active。本地默认展示 draft+active；公开只包括 active。
 - status：unread/reading/reviewed，只表示阅读整理状态。
 - personalAnalysis：私有研究判断，始终从公开投影排除；privateNotes 是历史兼容字段，同样排除，建议新内容使用 personalAnalysis。
-- facets：problem、architecture、learning、memory、deployment、task、dataset、environment 八个维度，值为 concept ID 数组；若概念指定 dimension，引用必须匹配。
+- facets：problem、architecture、learning、memory、deployment、task、dataset、environment 八个分类维度，值为稳定的研究对象 ID；若对象指定 dimension，引用必须匹配。分类命中不等于论文明确采用、扩展或证明了该对象。
 - claimEvidence：比较字段名到 evidence ID 数组；证据必须属于该论文。
 
 paper.topics 是主题归属唯一来源。专题、图谱和统计从现有主库派生，不维护第二份节点或计数。正文只存在于 paper.note；外部 Markdown 可以是输入材料，完成导入后不在两处手动维护。
 
-`concepts` 也承载研究实体档案。旧 `concept/method/dataset` 类型保持兼容，新增 `person/institution/project/problem/model/environment/benchmark`。`relatedIds` 是人工资料组织关系，不自动推出任职、采用或继承；`sources` 保存带标题、URL 和支持范围的回查材料。`database` 是可选的本地视图与类型化个人属性配置，不改变论文正文和证据模型。属性类型还包括只读 `formula` 与 `rollup`；它们只保存表达式或汇总配置，派生值在查询、排序、筛选、分组和导出时计算，不写入 `paper.customProperties`。
+`concepts` 是为兼容旧数据保留的物理集合，逻辑上按六组对象类型使用：人物与团队（`person/institution/project`）、方法与模型（`method/model`）、数据与评测（`dataset/environment/benchmark`）、任务（`task`）、概念（`concept`）、开放问题（`problem`）。因此 `/entities` 的“跨域索引”只是检索入口，不表示这些对象共享同一种语义。`kind=concept` 且 `dimension=problem` 仍然是问题域概念，不等于一个已经明确提出的开放问题；真正的开放问题使用 `kind=problem`，标题应写成可追踪的问题句。旧数据仍可暂存在 `concepts` 集合中，但编辑、筛选和详情页按这六组呈现。
+
+论文中的 `facets` 是分类索引：它回答“这篇论文被整理到哪些维度”，不自动构成采用、扩展或因果主张。`paper.problem` 是论文笔记中的问题概括；`topic.questions/gaps` 是专题层面的比较问题和库内缺口；三者不能互相替代。对象详情会分开展示 facet 分类命中、已审核关系回查和对象自身 `sources`，避免把分类命中误读成原文证据。
+
+`relatedIds` 是人工资料组织关系，不自动推出任职、采用或继承；`sources` 保存带标题、URL 和支持范围的回查材料。`database` 是可选的本地视图与类型化个人属性配置，不改变论文正文和证据模型。属性类型还包括只读 `formula` 与 `rollup`；它们只保存表达式或汇总配置，派生值在查询、排序、筛选、分组和导出时计算，不写入 `paper.customProperties`。
 
 ## 证据与关系
 
@@ -50,5 +54,9 @@ Relation.type：studies 研究、uses 采用、extends 扩展、related 相关�
 ## 公开投影
 
 公开构建显式允许字段，始终去掉 personalAnalysis、privateNotes、lifecycle、PDF 定位字段和 quote。只保留公开且 active 的论文；私有 topic/facet 引用被移除；证据必须自身公开且所属论文公开；关系需两端实体和全部证据可公开。claimEvidence、topic.evidenceIds/compareIds 同样过滤依赖。
+
+## 对象类型迁移
+
+历史样板中的 `environment-widowx` 和 `task-robot-manipulation` 曾以 `kind=concept` 加维度保存。已通过版本锁迁移为 `environment` 与 `task`，稳定 ID、字段和关系均保留；公开 `content/` 与本地主库已同步。重复执行前先运行 `node scripts/migrate-entity-kinds.mjs` 查看 dry-run，确认后才使用 `--write`。旧的其他概念仍按兼容规则读取，不由页面猜测为开放问题。
 
 content 是尚未初始化时的公开来源。存在本地权威库后，build、export、validate、package 和网关使用当前库；源码包以其公开投影重建 content，避免旧模板重新进入公开包。未知字段、无效枚举、重复身份和悬空引用均不通过保存校验。以后做不兼容变更必须设计显式迁移。

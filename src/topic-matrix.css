@@ -1,0 +1,135 @@
+.topic-comparison {
+  margin: 26px 0;
+  border-block: 1px solid var(--border, #dce3e8);
+  padding: 24px 0;
+}
+.topic-comparison-heading,
+.topic-comparison-controls,
+.topic-comparison-selection {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.topic-comparison-heading {
+  justify-content: space-between;
+  align-items: start;
+}
+.topic-comparison-heading h3 {
+  margin: 0 0 6px;
+}
+.topic-comparison-heading p {
+  margin: 0;
+  color: var(--muted, #64748b);
+  font-size: 13px;
+}
+.topic-comparison-heading > span {
+  font-size: 13px;
+  white-space: nowrap;
+}
+.topic-comparison-controls {
+  margin: 20px 0 14px;
+  font-size: 13px;
+}
+.topic-comparison-controls > label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.topic-comparison-controls input,
+.topic-comparison-paper input {
+  width: auto;
+  accent-color: var(--accent, #246f66);
+}
+.topic-comparison-selection {
+  margin-left: auto;
+  gap: 10px;
+}
+.topic-comparison-selection output {
+  white-space: nowrap;
+}
+.topic-comparison-scroll {
+  overflow-x: auto;
+  border: 1px solid var(--border, #dce3e8);
+  border-radius: 12px;
+}
+.topic-comparison-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 13px;
+}
+.topic-comparison-table th,
+.topic-comparison-table td {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border, #dce3e8);
+  border-right: 1px solid var(--border, #dce3e8);
+  text-align: left;
+  vertical-align: top;
+  min-width: 170px;
+}
+.topic-comparison-table tr:last-child td,
+.topic-comparison-table tr:last-child th {
+  border-bottom: 0;
+}
+.topic-comparison-table tr > :last-child {
+  border-right: 0;
+}
+.topic-comparison-table thead th {
+  background: #f2f6f4;
+}
+.topic-comparison-table tr > th:first-child {
+  min-width: 120px;
+  position: sticky;
+  left: 0;
+  background: #f7f9f8;
+  z-index: 1;
+}
+.topic-comparison-paper {
+  display: flex;
+  align-items: start;
+  gap: 9px;
+}
+.topic-comparison-paper small {
+  display: block;
+  font-weight: 400;
+  color: var(--muted, #64748b);
+  margin-top: 5px;
+}
+.topic-comparison-object {
+  display: block;
+  margin-bottom: 6px;
+  color: #17695d;
+}
+.topic-comparison-object:last-child {
+  margin-bottom: 0;
+}
+.topic-comparison-missing {
+  background: #fbfbfa;
+}
+.topic-comparison-missing a {
+  color: var(--muted, #64748b);
+  border-bottom: 1px dashed #b8c3c0;
+}
+.topic-comparison-empty {
+  padding: 28px 18px;
+  text-align: center;
+  color: var(--muted, #64748b);
+}
+.topic-comparison-empty h4 {
+  color: var(--text, #243b35);
+  font-size: 16px;
+  margin: 0 0 8px;
+}
+.topic-comparison-empty p {
+  margin: 0 0 16px;
+}
+@media (max-width: 700px) {
+  .topic-comparison-selection {
+    margin-left: 0;
+    width: 100%;
+  }
+  .topic-comparison-controls > label:first-child {
+    width: 100%;
+  }
+}

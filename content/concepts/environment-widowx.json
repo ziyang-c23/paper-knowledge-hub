@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "environment-widowx",
   "title": "WidowX BridgeData 评测",
-  "kind": "concept",
+  "kind": "environment",
   "visibility": "public",
   "demo": true,
   "description": "使用 WidowX 的论文评测；具体任务集合、试验数与数据划分仍需分别核对。",

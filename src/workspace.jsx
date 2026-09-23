@@ -15,6 +15,7 @@ import {
 import { entityKinds } from './lib/entities.mjs';
 import { enhancedSearch } from './lib/search-v2.mjs';
 import { normalizeText, comparisonMarkdown } from './lib/knowledge.mjs';
+import { TopicMatrix } from './topic-matrix.jsx';
 const PdfViewer = lazy(() => import('./pdf-viewer.jsx'));
 export const dimensions = {
   problem: '研究问题',
@@ -1804,7 +1805,7 @@ export function ResearchSearch({ workspace, route, Md, notify }) {
     </>
   );
 }
-export function TopicResearch({ topic, workspace, Md }) {
+export function TopicResearch({ topic, workspace, Md, local = false }) {
   const visibleIds = new Set(
     workspace.dataset.papers.filter((p) => p.lifecycle !== 'archived').map((p) => p.id),
   );
@@ -1816,7 +1817,6 @@ export function TopicResearch({ topic, workspace, Md }) {
     },
   };
   topic = { ...topic, compareIds: (topic.compareIds || []).filter((id) => visibleIds.has(id)) };
-
   return (
     <section className="panel padded">
       <div className="section-heading">
@@ -1831,18 +1831,28 @@ export function TopicResearch({ topic, workspace, Md }) {
         ))}
       </ul>
       <p className="footnote">“库内未覆盖”不能外推为“领域无人研究”。</p>
-      <h3>代表性证据</h3>
-      {(topic.evidenceIds || []).map((id) => {
-        const e = workspace.dataset.evidence.find((e) => e.id === id);
-        return e ? (
-          <div className="source-note" key={id}>
-            <p>{e.text}</p>
-            <a href={href('/paper/' + e.paperId, { evidence: id })}>
-              {id} · {kindNames[e.kind]} / {e.status === 'verified' ? '已核验' : '待核验'}
-            </a>
-          </div>
-        ) : null;
-      })}
+      <TopicMatrix
+        topic={topic}
+        dataset={workspace.dataset}
+        dimensions={dimensions}
+        local={local}
+      />
+      <details className="topic-source-details">
+        <summary>代表性来源 ({(topic.evidenceIds || []).length})</summary>
+        {(topic.evidenceIds || []).map((id) => {
+          const e = workspace.dataset.evidence.find((e) => e.id === id);
+          const sourcePaper = e && workspace.dataset.papers.find((paper) => paper.id === e.paperId);
+          return e ? (
+            <div className="source-note" key={id}>
+              <p>{e.text}</p>
+              <a href={href('/paper/' + e.paperId, { evidence: id })}>
+                {sourcePaper?.acronym || sourcePaper?.title || '打开论文'} ·{' '}
+                {e.status === 'verified' ? '已核验来源' : '待核查来源'}
+              </a>
+            </div>
+          ) : null;
+        })}
+      </details>
       <div className="row wrap">
         <a className="button" href={href('/compare', { ids: (topic.compareIds || []).join(',') })}>
           按专题论文继续比较

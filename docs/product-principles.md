@@ -1,13 +1,18 @@
 # 研究工作台产品原则
 
-本轮只保留会改变研究动作的能力，避免把论文页做成字段清单。设计参考了 2026-09-24 读取的公开资料：
+本轮只保留会改变研究动作的能力，避免把论文页做成字段清单。设计参考了 2026-09-24 读取的公开资料，并区分已经转化到本站的做法与仅供后续研究的项目：
 
-- [Zotero Collections and Tags](https://www.zotero.org/support/collections_and_tags)：集合是可嵌套的播放列表，同一条目可以属于多个集合；标签用于状态、主题和工作流，并支持组合筛选。
-- [Zotero PDF Reader / Notes](https://www.zotero.org/support/reader)：原文阅读、批注和笔记应在条目上下文中连续完成。
-- [AppFlowy](https://github.com/AppFlowy-IO/AppFlowy)：开源本地控制、数据库视图、文档、AI 和模板可以共存，但数据库不是唯一界面。
-- [Paperpile Claude Code template](https://github.com/alexiahartzell/paperpile)：PDF 处理、结构化阅读技能、引用管理和批注同步需要落到可复用工作流，而不是一次性聊天结果。
-- [React Flow](https://github.com/xyflow/xyflow)：交互式节点图的关键不是“画出节点”，而是把缩放、平移、选择、键盘操作和局部上下文做成连续动作。
-- [Cytoscape.js](https://github.com/cytoscape/cytoscape.js) / [D3 force](https://d3js.org/d3-force)：图布局和图分析可以分离；当前数据规模下保留轻量 SVG 渲染，优先实现可解释的局部聚焦，不把黑盒布局当成知识结论。
+**已转化为当前界面的做法**
+
+- [Zotero 集合与标签](https://www.zotero.org/support/collections_and_tags) 和 [PDF Reader / Notes](https://www.zotero.org/support/reader)：借鉴集合、状态、原文与笔记连续阅读；本站保留自己的本地数据和四个论文动作，并未接入 Zotero 同步。
+- [AppFlowy](https://github.com/AppFlowy-IO/AppFlowy)：借鉴本地数据、数据库视图和文档并存；本站已实现论文表格与对象目录，但没有复制其通用协作层。
+- [React Flow](https://github.com/xyflow/xyflow)、[Cytoscape.js](https://github.com/cytoscape/cytoscape.js) 与 [D3 force](https://d3js.org/d3-force)：借鉴可缩放、可聚焦的局部关系图；本站当前使用轻量 SVG 图谱，没有把黑盒布局当成知识结论。
+
+**已调研但尚未接入的流程参考**
+
+- [GROBID](https://github.com/kermitt2/grobid) 的 PDF 结构化解析、[PaperQA2](https://github.com/Future-House/paper-qa) 的带引用检索、[OpenAlex](https://docs.openalex.org) 的开放文献图谱，以及 [LitStudy](https://github.com/NLeSC/litstudy) 的集合分析，均是后续导入和专题分析的参考；当前项目没有声称已经集成这些服务。
+- [Hypothes.is](https://github.com/hypothesis/h)、[Gwern 的设计说明](https://gwern.net/design)、[Quartz 的页面预览](https://quartz.jzhao.xyz/features/popover-previews) 和 [Distill 模板](https://github.com/distillpub/template) 提供页级锚点、原位预览和交互式解释的方向；当前仅实现本地 PDF 页定位、对象回链和有限的图谱交互。
+- [SurVis](https://github.com/fabian-beck/survis)、[Paperlib](https://github.com/Future-Scholars/paperlib)、[Paperpile Claude Code template](https://github.com/alexiahartzell/paperpile) 和 [arXiv Sanity Preserver](https://github.com/karpathy/arxiv-sanity-preserver) 的文献集合、收集队列、PDF 流程和候选推荐可作为未来改进依据；推荐结果仍需回到原文核验，不会自动写成关系。
 
 ## 取其长处，保持当前项目边界
 
@@ -19,15 +24,18 @@
 
 ## 这个网页工作台要解决的关键动作
 
-Zotero 仍然适合收藏、去重和管理 PDF；Notion 仍然适合自由排版和协作。本站的核心增量只保留三件事：
+Zotero 仍然适合收藏、去重和管理 PDF；Notion 仍然适合自由排版和协作。本站的核心增量只保留四个实际动作：
 
-1. **从结论回到原文**：研究速览、证据卡和 PDF 文件页互相链接，阅读时可以从一句整理回到实际页码。
-2. **从一篇论文横向比较**：选中论文后直接生成比较矩阵，空白字段保持“未整理”，不会用模型猜测填满表格。
-3. **从阅读进入可审阅的 AI 流程**：逐页文本、原有笔记和关联材料先形成版本化上下文包，再进入草稿箱；模型输出必须经过人工确认才写回主库。
+1. **原文**：从研究速览或对象关联回到 PDF 页，保留页码和段落定位。
+2. **笔记**：用结构化笔记解释问题、机制、实验和局限；模板用于组织内容，不把章节数量当作阅读完成证明。
+3. **研究配置**：把论文涉及的方法、模型、数据、任务、概念和开放问题连接到对应对象，分类与原文关系分开显示。
+4. **专题比较**：选中论文后直接生成比较矩阵，突出差异，空白字段保持“未整理”，并可回到原文或保存进专题。
 
-这三条链路比增加更多字段更重要。新增界面只有在缩短“阅读 → 判断 → 比较 / 追溯”路径时才进入产品；统计、证据标识和内部状态放在次级面板，避免抢占论文主线。
+这四条链路比增加更多字段更重要。AI 只作为导入、检索和草稿整理的辅助，必须经过人工确认才写回主库。新增界面只有在缩短“阅读 → 判断 → 比较 / 追溯”路径时才进入产品；统计、证据标识和内部状态放在次级面板，避免抢占论文主线。
 
 关系探索页现在承担网页最有价值的动态交互：以论文或实体为中心生成局部网络，节点聚焦会淡化无关路径，关系边显示流动提示，画布支持拖拽、缩放和键盘访问，右侧检查器同步展示来源与审核状态。它表达的是“如何回查和选择下一步”，而不是把关系数量做成装饰性大图。
+
+这些参考共同指向一条主线：找到问题 → 阅读原文 → 结构化配置 → 比较论文 → 更新专题。它们不是本站已经部署的依赖，也不构成对论文内容的自动判断。
 
 公开 GitHub Pages 只承载公开投影和模板；完整 PDF、个人分析、私有笔记和本地阅读记录留在本地空间。未来若需要多人/跨设备同步，应增加受控文档存储和权限层，而不是把私有附件直接复制到静态站点。
 
