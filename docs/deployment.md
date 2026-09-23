@@ -17,7 +17,7 @@ Node 22.13+，npm；本地持久工作台按 [README](../README.md) 初始化后
 3. `.github/workflows/deploy.yml` 在 main 的 push 或手动 `workflow_dispatch` 时运行。部署流程先 validate、test、build、e2e，再 upload-pages-artifact，只上传 dist/；因此每次合入 main 都会更新公开示例，其他分支不会直接发布。
 4. 等待 deploy-pages 成功，使用真实步骤返回的 URL；实际打开首页、详情 hash、刷新、搜索。失败时先查 Pages 配置/权限/资源 404，不宣称部署成功。
 
-模板已在本机用严格静态服务器挂载 `/paper-knowledge-hub/` 验证资源和深链接。不依赖 catch-all rewrite 或 GitHub 404 fallback。实际 GitHub Actions/Pages 的外部执行尚未验证。
+模板已在本机用严格静态服务器挂载 `/paper-knowledge-hub/` 验证资源和深链接，不依赖 catch-all rewrite 或 GitHub 404 fallback。已确认的公开站点为 [ziyang-c23.github.io/paper-knowledge-hub](https://ziyang-c23.github.io/paper-knowledge-hub/)，最近一次 Pages 部署对应提交 `1332573`；后续本地修改只有在 main 的 workflow 成功后才算线上更新。
 
 ## 可选网关
 
@@ -25,4 +25,4 @@ Node 22.13+，npm；本地持久工作台按 [README](../README.md) 初始化后
 
 ## 源码包
 
-`npm run package` 校验并打包允许的源码、文档、测试和 schema；content 按当前权威库的公开投影重建。本地模式不打包截图、PDF 或私有主库。当前本机所有论文私有，因此当前包的公开论文集为空。生成 `artifacts/paper-knowledge-hub-source.zip`，不包括已安装依赖、dist、.git、私有文件或 .env。解压后进入 paper-knowledge-hub/，`npm ci` 重建。首次 npm ci 与测试浏览器安装需要网络；之后基础站点不需要外部服务。
+`npm run package` 校验并打包允许的源码、文档、测试和 schema；content 按当前权威库的公开投影重建。本地模式不打包截图、PDF 或私有主库。公开源码包只包含当前公开投影（当前示例包含 Octo 及其允许公开的专题、实体、证据和关系）；完整 PDF、个人分析、私有笔记和本地主库仍被 `private/` 边界排除。生成 `artifacts/paper-knowledge-hub-source.zip`，不包括已安装依赖、dist、.git、私有文件或 .env。解压后进入 paper-knowledge-hub/，`npm ci` 重建。首次 npm ci 与测试浏览器安装需要网络；之后基础站点不需要外部服务。

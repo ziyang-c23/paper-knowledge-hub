@@ -6,8 +6,8 @@ test('source reading mode keeps the note reader usable without a local PDF', asy
   await expect(page.getByText('尚未附加本地原文', { exact: true })).toBeVisible();
   await expect(page.getByRole('region', { name: '本地阅读记录' })).toBeVisible();
   await expect(page.getByRole('heading', { name: '阅读记录', exact: true })).toBeVisible();
-  await expect(page.getByRole('region', { name: '论文阅读工作流' })).toContainText('阅读笔记');
-  await expect(page.getByRole('region', { name: '论文阅读工作流' })).toContainText('专题比较');
+  await expect(page.getByRole('navigation', { name: '阅读模式' })).toContainText('阅读笔记');
+  await expect(page.getByRole('link', { name: '专题比较', exact: true })).toBeVisible();
   expect(errors).toEqual([]);
 });
 
@@ -98,4 +98,32 @@ test('selected comparison is saved to a topic and remains after reload', async (
   await page.reload();
   state = await (await request.get('/api/workspace')).json();
   expect(state.dataset.topics.find((t) => t.id === topic.id).compareIds).toEqual(ids);
+});
+
+test('paper modes separate summary, deep notes and sources and survive navigation', async ({
+  page,
+}) => {
+  await page.goto('/#/paper/octo');
+  await expect(page.locator('#research-summary')).toBeVisible();
+  await expect(page.locator('#paper-note')).toBeHidden();
+  await expect(page.locator('#paper-config')).toBeHidden();
+  const nav = page.getByRole('navigation', { name: '阅读模式' });
+  await nav.getByRole('link', { name: '阅读笔记', exact: true }).click();
+  await expect(page).toHaveURL(/mode=note/);
+  await expect(page.locator('#paper-note')).toBeVisible();
+  await expect(page.locator('#research-summary')).toBeHidden();
+  await page.reload();
+  await expect(page.locator('#paper-note')).toBeVisible();
+  await nav.getByRole('link', { name: '研究配置', exact: true }).click();
+  await expect(page.locator('#paper-config')).toBeVisible();
+  await expect(page.locator('#paper-note')).toBeHidden();
+  await page.goBack();
+  await expect(page.locator('#paper-note')).toBeVisible();
+  await nav.getByRole('link', { name: '研究速览', exact: true }).click();
+  await page.locator('#research-summary .claim-link').first().click();
+  await expect(page.locator('#paper-evidence')).toBeVisible();
+  await expect(nav.getByRole('link', { name: '来源与附件' })).toHaveAttribute(
+    'aria-current',
+    'page',
+  );
 });

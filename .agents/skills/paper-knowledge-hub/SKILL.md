@@ -11,6 +11,8 @@ description: 从论文链接、PDF 或已有笔记整理或更新 Paper Knowledg
 
 依据实际读取材料解释问题、贡献、机制、实验条件和局限。原文、整理者推断、代码观察与运行结果分别标明；已有笔记作为输入时不得声称重新核验了论文。缺失的原文、数字与页码保持未知。论文正文只保存在 `record.note`，个人判断可用 `personalAnalysis`，默认 private。PDF 附件独立保留，不复制全文作为笔记。
 
+新笔记导入 `src/lib/note-template.mjs` 的 `createNoteTemplate()` / `NOTE_SECTIONS`，正文深入背景、机制、实验分析、讨论和资源。书目信息、研究速览与分类分别维护在结构化字段，正文不重复它们。旧八章笔记正常保留；局部补充不强制整篇迁移。模板不是论文事实，不根据已出现几个标题推断完成精读。
+
 将 `{collection:"papers",record,sourceMaterial,uncertainties}` 保存至 ignored `private/ai-drafts/`，执行：
 
 ```sh
@@ -26,6 +28,8 @@ npm run ai:draft -- private/ai-drafts/paper.json --collection papers --stage
 npm run ai:prepare -- --paper PAPER_ID --out private/ai-drafts/PAPER_ID-context.json
 ```
 
-该包只写入 ignored `private/`，包含论文字段、已附加 PDF 的逐页文本、证据、关系、八章要求和不确定项；它会排除 `personalAnalysis`，并保存 `baseRevision`。模型生成的完整 JSON 仍必须经过 `npm run ai:draft ... --stage` 和网页草稿箱审阅，不能把上下文包直接写回主库。
+省略 `--out` 时默认保存到 `private/ai-drafts/PAPER_ID-context.json`。该包只写入 ignored `private/`，包含论文字段、已附加 PDF 的逐页文本、证据、关系、五章模板和字段职责；排除 `personalAnalysis` 与旧 `privateNotes`，保存 `baseRevision`。它仍包含本地论文/PDF，生成文件不授权外发，也不会自动调用模型。
+
+模型输出不能直接覆盖完整记录。应用前在本地读取当前论文，把本轮确认修改合并进去，保留未修改字段及上下文刻意排除的私人字段；使用 fresh revision。模型生成的 JSON 仍必须经过 `npm run ai:draft ... --stage` 和网页草稿箱审阅，不能把上下文包直接写回主库。
 
 保存后重新读取记录，在网页打开 `#/paper/ID` 检查正文与附件，使用导出笔记输出 Markdown。关联实体交给 `$hub-entities`，跨论文材料交给 `$hub-study`。外部发布不在此技能授权内。

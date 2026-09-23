@@ -3,12 +3,18 @@ import config from '../site.config.json';
 import './topic-matrix.css';
 
 export function TopicMatrix({ topic, dataset, dimensions, local = false }) {
+  return <TopicMatrixView key={topic.id} {...{ topic, dataset, dimensions, local }} />;
+}
+
+function TopicMatrixView({ topic, dataset, dimensions, local }) {
   const papers = dataset.papers.filter(
     (paper) => paper.lifecycle !== 'archived' && paper.topics?.includes(topic.id),
   );
   const available = new Set(papers.map((paper) => paper.id));
   const [selected, setSelected] = useState(() =>
-    (topic.compareIds || []).filter((id) => available.has(id)).slice(0, config.display.maxCompare),
+    [...new Set(topic.compareIds || [])]
+      .filter((id) => available.has(id))
+      .slice(0, config.display.maxCompare),
   );
   const [dimension, setDimension] = useState('');
   const [missingOnly, setMissingOnly] = useState(false);
@@ -35,7 +41,11 @@ export function TopicMatrix({ topic, dataset, dimensions, local = false }) {
       <div className="topic-comparison-heading">
         <div>
           <h3>专题比较矩阵</h3>
-          <p>按维度梳理论文，选中论文继续比较；未整理的格子可直接打开补充。</p>
+          <p>
+            {local
+              ? '选择论文比较，点击未整理项继续补充。'
+              : '选择论文比较，点击未整理项回到阅读笔记。'}
+          </p>
         </div>
         <span>{papers.length} 篇论文</span>
       </div>
@@ -95,7 +105,7 @@ export function TopicMatrix({ topic, dataset, dimensions, local = false }) {
               )}
             </div>
           </div>
-          {rows.length ? (
+          {
             <div
               className="topic-comparison-scroll"
               tabIndex={0}
@@ -172,7 +182,8 @@ export function TopicMatrix({ topic, dataset, dimensions, local = false }) {
                 </tbody>
               </table>
             </div>
-          ) : (
+          }
+          {!rows.length && (
             <p className="topic-comparison-empty" role="status">
               当前维度已整理，可切换维度或关闭筛选。
             </p>

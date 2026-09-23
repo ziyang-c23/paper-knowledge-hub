@@ -1351,3 +1351,19 @@ footer {
 .entities-page .entity-section h2 {
   font-size: 19px;
 }
+
+.reading-toolbar a {
+  margin: 0;
+  padding: 9px 14px;
+  border-radius: 7px;
+  color: var(--muted);
+  text-decoration: none;
+}
+.reading-toolbar a[aria-current='page'] {
+  background: #e6eedf;
+  color: #335932;
+  font-weight: 650;
+}
+.detail-grid [hidden] {
+  display: none !important;
+}

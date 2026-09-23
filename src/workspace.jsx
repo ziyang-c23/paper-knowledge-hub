@@ -16,6 +16,7 @@ import { entityKinds } from './lib/entities.mjs';
 import { enhancedSearch } from './lib/search-v2.mjs';
 import { normalizeText, comparisonMarkdown } from './lib/knowledge.mjs';
 import { TopicMatrix } from './topic-matrix.jsx';
+import { createNoteTemplate } from './lib/note-template.mjs';
 const PdfViewer = lazy(() => import('./pdf-viewer.jsx'));
 export const dimensions = {
   problem: '研究问题',
@@ -518,6 +519,25 @@ export function PaperEditor({ id, workspace, refresh, notify, Md, config }) {
               <button type="button" className="text-button" onClick={() => setPreview(!preview)}>
                 {preview ? '回到正文编辑' : '预览 Markdown'}
               </button>
+            </div>
+            <div className="row wrap">
+              <button
+                type="button"
+                className="button small"
+                disabled={Boolean(record.note?.trim())}
+                onClick={() => {
+                  if (record.note?.trim()) return;
+                  update('note', createNoteTemplate());
+                  setPreview(false);
+                }}
+              >
+                使用精读模板
+              </button>
+              <small className="muted">
+                {record.note?.trim()
+                  ? '已有正文，模板不会覆盖内容。'
+                  : '从研究背景、机制、实验、讨论与资源开始。'}
+              </small>
             </div>
             {preview ? (
               <Md>{record.note}</Md>
@@ -1816,61 +1836,61 @@ export function TopicResearch({ topic, workspace, Md, local = false }) {
       evidence: workspace.dataset.evidence.filter((e) => visibleIds.has(e.paperId)),
     },
   };
-  topic = { ...topic, compareIds: (topic.compareIds || []).filter((id) => visibleIds.has(id)) };
+  const sources = [...new Set(topic.evidenceIds || [])]
+    .map((id) => workspace.dataset.evidence.find((item) => item.id === id))
+    .filter(Boolean);
   return (
     <section className="panel padded">
-      <div className="section-heading">
-        <h2>专题研究工作区</h2>
-        <span className="badge">人工综合 / 非自动领域结论</span>
-      </div>
-      <Md>{topic.analysis || '尚未形成阶段性分析。先选择比较论文，整理研究问题与已有证据。'}</Md>
-      <h3>分歧与库内未覆盖项</h3>
-      <ul>
-        {(topic.gaps || []).map((g) => (
-          <li key={g}>{g}</li>
-        ))}
-      </ul>
-      <p className="footnote">“库内未覆盖”不能外推为“领域无人研究”。</p>
+      {topic.analysis && (
+        <>
+          <h2>专题分析</h2>
+          <Md>{topic.analysis}</Md>
+        </>
+      )}
+      {topic.gaps?.length > 0 && (
+        <>
+          <h3>待深入的问题</h3>
+          <ul>
+            {topic.gaps.map((gap, index) => (
+              <li key={index}>{gap}</li>
+            ))}
+          </ul>
+        </>
+      )}
       <TopicMatrix
         topic={topic}
         dataset={workspace.dataset}
         dimensions={dimensions}
         local={local}
       />
-      <details className="topic-source-details">
-        <summary>代表性来源 ({(topic.evidenceIds || []).length})</summary>
-        {(topic.evidenceIds || []).map((id) => {
-          const e = workspace.dataset.evidence.find((e) => e.id === id);
-          const sourcePaper = e && workspace.dataset.papers.find((paper) => paper.id === e.paperId);
-          return e ? (
-            <div className="source-note" key={id}>
-              <p>{e.text}</p>
-              <a href={href('/paper/' + e.paperId, { evidence: id })}>
-                {sourcePaper?.acronym || sourcePaper?.title || '打开论文'} ·{' '}
-                {e.status === 'verified' ? '已核验来源' : '待核查来源'}
-              </a>
-            </div>
-          ) : null;
-        })}
-      </details>
+      {sources.length > 0 && (
+        <details className="topic-source-details">
+          <summary>代表性来源 ({sources.length})</summary>
+          {sources.map((e) => {
+            const sourcePaper = workspace.dataset.papers.find((paper) => paper.id === e.paperId);
+            return (
+              <div className="source-note" key={e.id}>
+                <p>{e.text}</p>
+                <a href={href('/paper/' + e.paperId, { evidence: e.id })}>
+                  {sourcePaper?.acronym || sourcePaper?.title || '打开论文'} ·{' '}
+                  {e.status === 'verified' ? '已核验来源' : '待核查来源'}
+                </a>
+              </div>
+            );
+          })}
+        </details>
+      )}
       <div className="row wrap">
-        <a className="button" href={href('/compare', { ids: (topic.compareIds || []).join(',') })}>
-          按专题论文继续比较
-        </a>
         <button
           className="button"
           onClick={() =>
             fileDownload(
               topic.id + '-research.md',
-              `# ${topic.title}\n\n人工综合；不是领域穷尽结论。\n\n${topic.analysis || ''}\n\n## 分歧与库内空白\n${(topic.gaps || []).map((g) => '- ' + g).join('\n')}\n\n## 来源与支持范围\n${(
-                topic.evidenceIds || []
-              )
-                .map((id) => {
-                  const e = workspace.dataset.evidence.find((e) => e.id === id);
-                  return e
-                    ? `- [${id}] ${kindNames[e.kind]} / ${e.status}: ${e.text}\n  ${e.url || '来源未提供'}；${e.locator || '位置未提供'}`
-                    : '';
-                })
+              `# ${topic.title}\n\n人工综合；不是领域穷尽结论。\n\n${topic.analysis || ''}\n\n## 分歧与库内空白\n${(topic.gaps || []).map((g) => '- ' + g).join('\n')}\n\n## 来源与支持范围\n${sources
+                .map(
+                  (e) =>
+                    `- [${e.id}] ${kindNames[e.kind]} / ${e.status}: ${e.text}\n  ${e.url || '来源未提供'}；${e.locator || '位置未提供'}`,
+                )
                 .join('\n\n')}`,
             )
           }

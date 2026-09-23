@@ -68,7 +68,7 @@ import './styles.css';
 import { AppShell, WorkbenchHome } from './ui.jsx';
 import { DraftInbox } from './drafts.jsx';
 import './ui.css';
-import { ParallelReader, ReaderNotes } from './reading.jsx';
+import { ParallelReader, ReaderNotes, NoteOutline } from './reading.jsx';
 const statusLabels = { unread: '待阅读', reading: '阅读中', reviewed: '已整理' };
 const kinds = { paper: '论文', topic: '主题', ...entityKinds };
 const originLabels = {
@@ -744,15 +744,17 @@ function LibraryPage({ route, selected, toggle, workspace }) {
   );
 }
 function PaperPage({ route, selected, toggle, notify, workspace, refresh }) {
-  const [readingMode, setReadingMode] = useState(
-    route.params.get('mode') === 'source' ? 'source' : 'note',
-  );
+  const requestedMode = route.params.get('mode');
+  const readingMode = route.params.get('evidence')
+    ? 'sources'
+    : ['overview', 'note', 'source', 'config', 'sources'].includes(requestedMode)
+      ? requestedMode
+      : 'overview';
   const p =
     paper(route.path.slice(7)) ||
     (workspace?.dataset.papers.find((p) => p.id === route.path.slice(7)) &&
       normalizePaper(workspace.dataset.papers.find((p) => p.id === route.path.slice(7))));
   useEffect(() => {
-    setReadingMode(route.params.get('mode') === 'source' ? 'source' : 'note');
     const ev = route.params.get('evidence');
     if (ev)
       setTimeout(
@@ -762,10 +764,7 @@ function PaperPage({ route, selected, toggle, notify, workspace, refresh }) {
   }, [route.path, route.params.toString()]);
   if (!p) return <Empty title="论文不存在" />;
   const evidence = data.evidence.filter((e) => e.paperId === p.id),
-    relations = data.relations.filter((r) => r.source === p.id || r.target === p.id),
-    concepts = [...new Set(relations.flatMap((r) => [r.source, r.target]))].filter((id) =>
-      data.concepts.some((c) => c.id === id),
-    );
+    relations = data.relations.filter((r) => r.source === p.id || r.target === p.id);
   const reading = readingContext(p, {
     documents: workspace?.documents || [],
     topics: data.topics,
@@ -832,7 +831,17 @@ function PaperPage({ route, selected, toggle, notify, workspace, refresh }) {
           onClick={() =>
             download(
               p.id + '.md',
-              `# ${p.title}\n\n${cite}\n\n${p.note}${workspace && p.personalAnalysis ? '\n\n## 个人分析（本地导出，未经验证）\n\n' + p.personalAnalysis : ''}\n\n## 证据\n\n${evidence.map((e) => `- [${e.id}] ${evidenceKinds[e.kind]} / ${e.status === 'verified' ? '已核验' : '待核验'}：${e.text}\n  来源：${e.url || '未提供来源（不可视为原文支持）'}；${e.locator || '定位未提供'}`).join('\n\n')}`,
+              `# ${p.title}\n\n${cite}\n\n## 研究速览\n\n${[
+                ['研究问题', p.problem],
+                ['方法概括', p.method],
+                ['关键结论', p.conclusions],
+                ['局限与边界', p.limitations],
+              ]
+                .filter(([, value]) => value)
+                .map(([label, value]) => `**${label}**：${value}`)
+                .join(
+                  '\n\n',
+                )}\n\n${p.note || ''}${workspace && p.personalAnalysis ? '\n\n## 个人分析（本地导出，未经验证）\n\n' + p.personalAnalysis : ''}\n\n## 证据\n\n${evidence.map((e) => `- [${e.id}] ${evidenceKinds[e.kind]} / ${e.status === 'verified' ? '已核验' : '待核验'}：${e.text}\n  来源：${e.url || '未提供来源（不可视为原文支持）'}；${e.locator || '定位未提供'}`).join('\n\n')}`,
             )
           }
         >
@@ -841,99 +850,41 @@ function PaperPage({ route, selected, toggle, notify, workspace, refresh }) {
         </button>
       </div>
       <nav className="reading-toolbar" aria-label="阅读模式">
-        <button aria-pressed={readingMode === 'note'} onClick={() => setReadingMode('note')}>
-          阅读笔记
-        </button>
-        <button aria-pressed={readingMode === 'source'} onClick={() => setReadingMode('source')}>
-          原文与笔记
-        </button>
-        <a
-          href="#research-summary"
-          onClick={(e) => {
-            e.preventDefault();
-            document.getElementById('research-summary')?.scrollIntoView();
-          }}
-        >
-          研究速览
-        </a>
-        <a
-          href="#paper-evidence"
-          onClick={(e) => {
-            e.preventDefault();
-            document.getElementById('paper-evidence')?.scrollIntoView();
-          }}
-        >
-          证据与来源
-        </a>
-      </nav>
-      <section className="paper-progress" aria-label="论文阅读工作流">
-        <div className="paper-progress-steps">
-          <a href={link('/paper/' + p.id, { mode: 'source' })}>
-            <FileText size={18} />
-            <span>
-              <b>对照原文</b>
-              <small>
-                {reading.documentCount ? `${reading.documentCount} 份本地全文` : '外部原文入口'}
-              </small>
-            </span>
-          </a>
-          <button
-            onClick={() => {
-              setReadingMode('note');
-              requestAnimationFrame(() =>
-                document.getElementById('paper-note')?.scrollIntoView({ block: 'start' }),
-              );
-            }}
-          >
-            <BookOpen size={18} />
-            <span>
-              <b>阅读笔记</b>
-              <small>{reading.hasNote ? '已保存笔记' : '尚未整理'}</small>
-            </span>
-          </button>
-          <button
-            onClick={() =>
-              document.getElementById('paper-config')?.scrollIntoView({ block: 'start' })
-            }
-          >
-            <Layers size={18} />
-            <span>
-              <b>研究配置</b>
-              <small>
-                {reading.facetCount ? `${reading.facetCount} 个已整理维度` : '尚未分类'}
-              </small>
-            </span>
-          </button>
+        {[
+          ['overview', '研究速览'],
+          ['note', '阅读笔记'],
+          ['source', '原文与笔记'],
+          ['config', '研究配置'],
+          ['sources', '来源与附件'],
+        ].map(([mode, label]) => (
           <a
-            href={
-              reading.topics.length === 1
-                ? link('/topic/' + reading.topics[0].id)
-                : reading.topics.length
-                  ? '#/topics'
-                  : workspace
-                    ? link('/edit/' + p.id)
-                    : '#/topics'
-            }
+            key={mode}
+            aria-current={readingMode === mode ? 'page' : undefined}
+            href={link('/paper/' + p.id, { mode })}
           >
-            <Columns3 size={18} />
-            <span>
-              <b>专题比较</b>
-              <small>
-                {reading.topics.length ? `${reading.topics.length} 个关联专题` : '选择研究专题'}
-              </small>
-            </span>
+            {label}
           </a>
-        </div>
-      </section>
+        ))}
+      </nav>
       {readingMode === 'source' && (
         <>
-          <ParallelReader key={p.id} paper={p} documents={workspace?.documents} Md={Md} />
-          <ReaderNotes paper={p} />
+          <ParallelReader
+            key={p.id}
+            paper={p}
+            documents={workspace?.documents}
+            Md={Md}
+            local={Boolean(workspace)}
+          />
+          <ReaderNotes paper={p} local={Boolean(workspace)} />
         </>
       )}
       <div className="detail-grid">
         <div>
-          <section id="research-summary" className="panel detail-summary">
+          <section
+            id="research-summary"
+            className="panel detail-summary"
+            hidden={readingMode !== 'overview'}
+          >
             <div className="section-heading">
               <h2>研究速览</h2>
               <span className="muted">整理者归纳 · 请结合原文</span>
@@ -947,13 +898,13 @@ function PaperPage({ route, selected, toggle, notify, workspace, refresh }) {
               <div className="summary-field" key={f.k}>
                 <h3>{f.l}</h3>
                 <p>{unknown(p[f.k])}</p>
-                {(p.claimEvidence?.[f.k] || []).map((id) => (
+                {(p.claimEvidence?.[f.k] || []).slice(0, 1).map((id) => (
                   <a
                     className="claim-link"
                     key={id}
                     href={link('/paper/' + p.id, { evidence: id })}
                   >
-                    查看来源{' '}
+                    来源 · {p.claimEvidence[f.k].length}
                   </a>
                 ))}
               </div>
@@ -975,20 +926,24 @@ function PaperPage({ route, selected, toggle, notify, workspace, refresh }) {
                 <div className="summary-field" key={k}>
                   <h3>{config.comparisonFields.find((f) => f.key === k)?.label || k}</h3>
                   <p>{unknown(p[k])}</p>
-                  {(p.claimEvidence?.[k] || []).map((id) => (
+                  {(p.claimEvidence?.[k] || []).slice(0, 1).map((id) => (
                     <a
                       className="claim-link"
                       key={id}
                       href={link('/paper/' + p.id, { evidence: id })}
                     >
-                      查看来源{' '}
+                      来源 · {p.claimEvidence[k].length}
                     </a>
                   ))}
                 </div>
               ))}
             </details>
           </section>
-          <section id="paper-config" className="panel paper-facets">
+          <section
+            id="paper-config"
+            className="panel paper-facets"
+            hidden={readingMode !== 'config'}
+          >
             <div className="section-heading">
               <div>
                 <h2>研究配置</h2>
@@ -1020,7 +975,7 @@ function PaperPage({ route, selected, toggle, notify, workspace, refresh }) {
               })}
             </div>
           </section>
-          {workspace && p.personalAnalysis && (
+          {workspace && p.personalAnalysis && readingMode === 'note' && (
             <section className="panel padded">
               <details>
                 <summary>我的判断 / 待验证 idea</summary>
@@ -1029,14 +984,25 @@ function PaperPage({ route, selected, toggle, notify, workspace, refresh }) {
               </details>
             </section>
           )}
-          <section id="paper-note" className="panel note-panel" hidden={readingMode === 'source'}>
+          <section id="paper-note" className="panel note-panel" hidden={readingMode !== 'note'}>
             <div className="section-heading">
               <h2>阅读笔记</h2>
-              <Badge>Markdown</Badge>
+              <span className="muted">方法、实验与深入讨论</span>
             </div>
-            <Md>{p.note}</Md>
+            {readingMode === 'note' &&
+              (p.note?.trim() ? (
+                <Md>{p.note}</Md>
+              ) : (
+                <Empty title="尚未整理阅读笔记">
+                  {workspace ? (
+                    <a href={link('/edit/' + p.id)}>打开编辑器开始整理</a>
+                  ) : (
+                    '此论文尚未提供深入笔记。'
+                  )}
+                </Empty>
+              ))}
           </section>
-          <section id="paper-evidence" className="panel">
+          <section id="paper-evidence" className="panel" hidden={readingMode !== 'sources'}>
             <div className="section-heading">
               <h2>
                 证据与来源 <small>{evidence.length}</small>
@@ -1050,40 +1016,33 @@ function PaperPage({ route, selected, toggle, notify, workspace, refresh }) {
           </section>
         </div>
         <aside className="detail-aside">
-          <section className="note-toc">
-            <h2>笔记目录</h2>
-            {(p.note || '')
-              .split('\n')
-              .filter((l) => /^#{1,3} /.test(l))
-              .map((l, i) => (
-                <button
-                  key={i}
-                  onClick={() => {
-                    const reader = document.querySelector(
-                      readingMode === 'source'
-                        ? '[aria-label="并排阅读笔记"] .markdown'
-                        : '.note-panel .markdown',
-                    );
-                    reader
-                      ?.querySelectorAll('h1,h2,h3')
-                      [i]?.scrollIntoView({ block: 'start', behavior: 'smooth' });
-                  }}
-                >
-                  {l.replace(/^#+ /, '')}
-                </button>
-              ))}
-          </section>
-          {workspace && (
+          {(readingMode === 'note' || readingMode === 'source') && (
+            <NoteOutline paper={p} mode={readingMode} />
+          )}
+          {workspace && readingMode === 'sources' && (
             <DocumentPanel paperId={p.id} workspace={workspace} refresh={refresh} notify={notify} />
           )}
           <section className="panel">
             <div className="section-heading">
+              <h2>继续研究</h2>
+            </div>
+            <a
+              className="button full"
+              href={
+                reading.topics.length === 1 ? link('/topic/' + reading.topics[0].id) : '#/topics'
+              }
+            >
+              专题比较 <Columns3 size={16} />
+            </a>
+            <a className="button full" href={link('/graph', { node: p.id, hops: '1' })}>
+              局部关系图 <ArrowUpRight size={16} />
+            </a>
+          </section>
+          <section className="panel" hidden={readingMode !== 'config'}>
+            <div className="section-heading">
               <h2>关联材料</h2>
               <Network size={18} />
             </div>
-            <a className="button full" href={link('/graph', { node: p.id, hops: '1' })}>
-              打开局部关系图 <ArrowUpRight size={16} />
-            </a>
             {workspace && (
               <a className="button full" href={'#/associations?collection=relations&paper=' + p.id}>
                 新增或编辑关联
@@ -1104,23 +1063,7 @@ function PaperPage({ route, selected, toggle, notify, workspace, refresh }) {
               <p className="muted">尚无关联记录。</p>
             )}
           </section>
-          <section className="panel">
-            <div className="section-heading">
-              <h2>概念与方法</h2>
-            </div>
-            <div className="tags padded">
-              {concepts.length ? (
-                concepts.map((id) => (
-                  <a key={id} href={entityLink(id)} className="tag">
-                    {title(id)}
-                  </a>
-                ))
-              ) : (
-                <p className="muted">尚未关联概念。</p>
-              )}
-            </div>
-          </section>
-          <section className="panel info-panel">
+          <section className="panel info-panel" hidden={readingMode !== 'sources'}>
             <b>记录信息</b>
             <p>
               稳定 ID：{p.id}
