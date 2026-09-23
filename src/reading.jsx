@@ -1,4 +1,4 @@
-import React, { lazy, Suspense, useState } from 'react';
+import React, { lazy, Suspense, useEffect, useState } from 'react';
 const PdfViewer = lazy(() => import('./pdf-viewer.jsx'));
 export function ParallelReader({ paper, documents, Md }) {
   const docs = (documents || []).filter((d) => d.paperId === paper.id),

@@ -1,4 +1,14 @@
 import { test, expect } from '@playwright/test';
+test('source reading mode keeps the note reader usable without a local PDF', async ({ page }) => {
+  const errors = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  await page.goto('/#/paper/octo?mode=source');
+  await expect(page.getByText('尚未附加本地原文', { exact: true })).toBeVisible();
+  await expect(page.getByRole('region', { name: '本地阅读记录' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '阅读记录', exact: true })).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
 test('draft inbox accepts, edits, applies and opens a durable record', async ({
   page,
   request,
