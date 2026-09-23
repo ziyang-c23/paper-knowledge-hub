@@ -28,6 +28,9 @@ import {
   Clock,
   ChevronRight,
   Settings,
+  ZoomIn,
+  ZoomOut,
+  LocateFixed,
 } from 'lucide-react';
 import seedData from './generated/public.json';
 import { normalizePaper } from './lib/knowledge.mjs';
@@ -1140,10 +1143,18 @@ function TopicPage({ route, workspace }) {
     </>
   );
 }
+function positionsForGraph(count) {
+  return count > 7 ? 560 : 420;
+}
+
 function GraphPage({ route }) {
   const p = route.params,
     [edge, setEdge] = useState(null),
-    [focus, setFocus] = useState(null);
+    [focus, setFocus] = useState(null),
+    [hoverNode, setHoverNode] = useState(null),
+    [zoom, setZoom] = useState(1),
+    [pan, setPan] = useState({ x: 0, y: 0 }),
+    dragRef = useRef(null);
   const start = p.get('scope') === 'all' ? '*' : p.get('node') || data.papers[0]?.id || '',
     hops = Number(p.get('hops') || 1);
   const update = (k, v) =>
@@ -1166,14 +1177,46 @@ function GraphPage({ route }) {
   useEffect(() => {
     setEdge(null);
     setFocus(null);
+    setHoverNode(null);
+    setZoom(1);
+    setPan({ x: 0, y: 0 });
   }, [route.params.toString()]);
-  const positions = graph.nodes.map((n, i) => ({
-    ...n,
-    x: 90 + (i % 3) * 240,
-    y: 55 + Math.floor(i / 3) * 115,
-  }));
-  const height = Math.max(220, Math.ceil(positions.length / 3) * 115 + 30),
-    chosen = edges.find((r) => r.id === edge);
+  const width = 860,
+    height = Math.max(420, positionsForGraph(graph.nodes.length)),
+    anchor = start === '*' ? null : start,
+    positions = graph.nodes.map((n, i) => {
+      if (n.id === anchor) return { ...n, x: width / 2, y: height / 2 - 12 };
+      const rest = graph.nodes.filter((candidate) => candidate.id !== anchor),
+        index = rest.findIndex((candidate) => candidate.id === n.id),
+        radius = Math.min(285, 150 + rest.length * 10),
+        angle = -Math.PI / 2 + (index / Math.max(rest.length, 1)) * Math.PI * 2;
+      return {
+        ...n,
+        x: width / 2 + Math.cos(angle) * radius,
+        y: height / 2 + Math.sin(angle) * Math.min(radius * 0.62, 175) - 12,
+      };
+    }),
+    chosen = edges.find((r) => r.id === edge),
+    activeNode = focus || hoverNode;
+  const resetView = () => {
+    setZoom(1);
+    setPan({ x: 0, y: 0 });
+  };
+  const dragStart = (event) => {
+    if (event.target.closest('[role="button"]')) return;
+    dragRef.current = { x: event.clientX, y: event.clientY, pan };
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+  };
+  const dragMove = (event) => {
+    if (!dragRef.current) return;
+    setPan({
+      x: dragRef.current.pan.x + (event.clientX - dragRef.current.x) / zoom,
+      y: dragRef.current.pan.y + (event.clientY - dragRef.current.y) / zoom,
+    });
+  };
+  const dragEnd = () => {
+    dragRef.current = null;
+  };
   return (
     <>
       <Heading eyebrow="RELATION EXPLORER" title="关系探索">
@@ -1264,103 +1307,173 @@ function GraphPage({ route }) {
               <p>下面展示全库待审核记录，请核对来源后在主数据中更新审核状态。</p>
             </div>
           ) : graph.nodes.length ? (
-            <div className="graph-scroll">
-              <svg viewBox={`0 0 740 ${height}`} role="img" aria-label="已审核关系图">
-                <title>点击节点查看详情；边与关系列表均可键盘操作</title>
-                <defs>
-                  <marker
-                    id="arrow"
-                    viewBox="0 0 10 10"
-                    refX="10"
-                    refY="5"
-                    markerWidth="6"
-                    markerHeight="6"
-                    orient="auto-start-reverse"
+            <>
+              <div className="graph-stage-toolbar" aria-label="图谱视图控制">
+                <span className="muted">拖动画布 · 滚轮缩放 · 点击节点或连线查看上下文</span>
+                <div className="graph-stage-actions">
+                  <button
+                    className="icon-button"
+                    aria-label="缩小图谱"
+                    onClick={() => setZoom((value) => Math.max(0.65, value - 0.15))}
                   >
-                    <path d="M 0 0 L 10 5 L 0 10 z" fill="#829ab1" />
-                  </marker>
-                </defs>
-                {graph.edges.map((r) => {
-                  const a = positions.find((n) => n.id === r.source),
-                    b = positions.find((n) => n.id === r.target);
-                  const dx = b.x - a.x,
-                    dy = b.y - a.y;
-                  const trim = Math.min(
-                    90 / Math.max(Math.abs(dx), 0.001),
-                    35 / Math.max(Math.abs(dy), 0.001),
-                  );
-                  const edgePath =
-                    r.source === r.target
-                      ? `M ${a.x + 160} ${a.y + 23} C ${a.x + 210} ${a.y - 55}, ${a.x + 70} ${a.y - 75}, ${a.x + 72.5} ${a.y - 13}`
-                      : `M ${a.x + 72.5 + dx * trim} ${a.y + 23 + dy * trim} L ${b.x + 72.5 - dx * trim} ${b.y + 23 - dy * trim}`;
-                  return (
-                    <g
-                      key={r.id}
-                      role="button"
-                      tabIndex="0"
-                      aria-label={
-                        '查看关系 ' +
-                        title(r.source) +
-                        ' ' +
-                        relationLabels[r.type] +
-                        ' ' +
-                        title(r.target)
-                      }
-                      onClick={() => setEdge(r.id)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' || e.key === ' ') {
-                          e.preventDefault();
-                          setEdge(r.id);
-                        }
-                      }}
+                    <ZoomOut size={16} />
+                  </button>
+                  <output aria-label="图谱缩放比例">{Math.round(zoom * 100)}%</output>
+                  <button
+                    className="icon-button"
+                    aria-label="放大图谱"
+                    onClick={() => setZoom((value) => Math.min(1.8, value + 0.15))}
+                  >
+                    <ZoomIn size={16} />
+                  </button>
+                  <button className="button small" onClick={resetView}>
+                    <LocateFixed size={14} />
+                    重置视图
+                  </button>
+                </div>
+              </div>
+              <div className="graph-scroll">
+                <svg
+                  ref={(node) => {
+                    if (node) node.style.cursor = dragRef.current ? 'grabbing' : 'grab';
+                  }}
+                  viewBox={`0 0 ${width} ${height}`}
+                  role="img"
+                  aria-label="已审核关系图"
+                  onPointerDown={dragStart}
+                  onPointerMove={dragMove}
+                  onPointerUp={dragEnd}
+                  onPointerCancel={dragEnd}
+                  onWheel={(event) => {
+                    event.preventDefault();
+                    setZoom((value) =>
+                      Math.max(0.65, Math.min(1.8, value + (event.deltaY < 0 ? 0.08 : -0.08))),
+                    );
+                  }}
+                >
+                  <title>点击节点查看详情；拖动画布、滚轮缩放；边与关系列表均可键盘操作</title>
+                  <defs>
+                    <marker
+                      id="arrow"
+                      viewBox="0 0 10 10"
+                      refX="10"
+                      refY="5"
+                      markerWidth="6"
+                      markerHeight="6"
+                      orient="auto-start-reverse"
                     >
-                      <path
-                        d={edgePath}
-                        className={'graph-edge ' + (edge === r.id ? 'selected' : '')}
-                        markerEnd="url(#arrow)"
-                      />
-                      <path d={edgePath} stroke="transparent" strokeWidth="16" />
-                    </g>
-                  );
-                })}
-                {positions.map((n) => (
+                      <path d="M 0 0 L 10 5 L 0 10 z" fill="#829ab1" />
+                    </marker>
+                  </defs>
                   <g
-                    key={n.id}
-                    role="button"
-                    tabIndex="0"
-                    aria-label={'查看节点 ' + (n.acronym || n.title)}
-                    onClick={() => {
-                      setEdge(null);
-                      setFocus(n.id);
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        e.preventDefault();
-                        setEdge(null);
-                        setFocus(n.id);
-                      }
-                    }}
-                    transform={`translate(${n.x},${n.y})`}
-                    className={
-                      'graph-node ' +
-                      (n.id === start ? 'root' : '') +
-                      ' ' +
-                      (focus === n.id ? 'focused' : '')
-                    }
+                    transform={`translate(${width / 2 + pan.x} ${height / 2 + pan.y}) scale(${zoom}) translate(${-width / 2} ${-height / 2})`}
                   >
-                    <rect x="-15" y="-9" width="175" height="64" rx="10" />
-                    <text x="0" y="12" className="graph-kind">
-                      {kinds[n.nodeType]}
-                    </text>
-                    <text x="0" y="36">
-                      {(n.acronym || n.title).length > 19
-                        ? (n.acronym || n.title).slice(0, 18) + '…'
-                        : n.acronym || n.title}
-                    </text>
+                    {graph.edges.map((r) => {
+                      const a = positions.find((n) => n.id === r.source),
+                        b = positions.find((n) => n.id === r.target);
+                      const dx = b.x - a.x,
+                        dy = b.y - a.y;
+                      const trim = Math.min(
+                        90 / Math.max(Math.abs(dx), 0.001),
+                        35 / Math.max(Math.abs(dy), 0.001),
+                      );
+                      const edgePath =
+                        r.source === r.target
+                          ? `M ${a.x + 160} ${a.y + 23} C ${a.x + 210} ${a.y - 55}, ${a.x + 70} ${a.y - 75}, ${a.x + 72.5} ${a.y - 13}`
+                          : `M ${a.x + 72.5 + dx * trim} ${a.y + 23 + dy * trim} L ${b.x + 72.5 - dx * trim} ${b.y + 23 - dy * trim}`;
+                      const connected = activeNode && [r.source, r.target].includes(activeNode);
+                      return (
+                        <g
+                          key={r.id}
+                          role="button"
+                          tabIndex="0"
+                          aria-label={
+                            '查看关系 ' +
+                            title(r.source) +
+                            ' ' +
+                            relationLabels[r.type] +
+                            ' ' +
+                            title(r.target)
+                          }
+                          onMouseEnter={() => setHoverNode(r.source)}
+                          onMouseLeave={() => setHoverNode(null)}
+                          onClick={() => setEdge(r.id)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              e.preventDefault();
+                              setEdge(r.id);
+                            }
+                          }}
+                        >
+                          <path
+                            d={edgePath}
+                            className={'graph-edge ' + (edge === r.id ? 'selected' : '')}
+                            markerEnd="url(#arrow)"
+                            style={{ opacity: connected || !activeNode ? 1 : 0.18 }}
+                          />
+                          <path d={edgePath} stroke="transparent" strokeWidth="18" />
+                          {(edge === r.id || hoverNode === r.source) && (
+                            <circle className="graph-flow-dot" r="4">
+                              <animateMotion dur="2.8s" repeatCount="indefinite" path={edgePath} />
+                            </circle>
+                          )}
+                        </g>
+                      );
+                    })}
+                    {positions.map((n) => {
+                      const connected = activeNode
+                        ? n.id === activeNode ||
+                          graph.edges.some(
+                            (r) =>
+                              [r.source, r.target].includes(activeNode) &&
+                              [r.source, r.target].includes(n.id),
+                          )
+                        : true;
+                      return (
+                        <g
+                          key={n.id}
+                          role="button"
+                          tabIndex="0"
+                          aria-label={'查看节点 ' + (n.acronym || n.title)}
+                          onMouseEnter={() => setHoverNode(n.id)}
+                          onMouseLeave={() => setHoverNode(null)}
+                          onClick={() => {
+                            setEdge(null);
+                            setFocus(n.id);
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              e.preventDefault();
+                              setEdge(null);
+                              setFocus(n.id);
+                            }
+                          }}
+                          transform={`translate(${n.x},${n.y})`}
+                          className={
+                            'graph-node ' +
+                            (n.id === start ? 'root' : '') +
+                            ' ' +
+                            (focus === n.id ? 'focused' : '')
+                          }
+                          style={{ opacity: connected ? 1 : 0.3 }}
+                        >
+                          <title>{n.acronym || n.title}</title>
+                          <rect x="-15" y="-9" width="175" height="64" rx="10" />
+                          <text x="0" y="12" className="graph-kind">
+                            {kinds[n.nodeType]}
+                          </text>
+                          <text x="0" y="36">
+                            {(n.acronym || n.title).length > 19
+                              ? (n.acronym || n.title).slice(0, 18) + '…'
+                              : n.acronym || n.title}
+                          </text>
+                        </g>
+                      );
+                    })}
                   </g>
-                ))}
-              </svg>
-            </div>
+                </svg>
+              </div>
+            </>
           ) : (
             <Empty title="当前筛选下没有节点" />
           )}

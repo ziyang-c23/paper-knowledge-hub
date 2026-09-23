@@ -9,6 +9,19 @@ test('source reading mode keeps the note reader usable without a local PDF', asy
   expect(errors).toEqual([]);
 });
 
+test('relation explorer supports animated focus and viewport controls', async ({ page }) => {
+  await page.goto('/#/graph?node=octo&hops=2');
+  await expect(page.getByRole('img', { name: '已审核关系图' })).toBeVisible();
+  await expect(page.getByText('拖动画布 · 滚轮缩放 · 点击节点或连线查看上下文')).toBeVisible();
+  await page.getByRole('button', { name: '放大图谱' }).click();
+  await expect(page.getByLabel('图谱缩放比例')).toHaveText('115%');
+  await page.getByRole('button', { name: '重置视图' }).click();
+  await expect(page.getByLabel('图谱缩放比例')).toHaveText('100%');
+  const node = page.getByRole('button', { name: /查看节点/ }).first();
+  await node.click();
+  await expect(page.getByRole('heading', { name: '节点详情', exact: true })).toBeVisible();
+});
+
 test('draft inbox accepts, edits, applies and opens a durable record', async ({
   page,
   request,

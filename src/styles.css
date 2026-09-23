@@ -1067,31 +1067,70 @@ main {
   background: radial-gradient(#d9e3f0 0.8px, transparent 0.8px);
   background-size: 16px 16px;
   padding: 20px 0;
+  touch-action: none;
 }
 .graph-scroll svg {
   width: 100%;
   min-width: 640px;
   display: block;
+  user-select: none;
+}
+.graph-stage-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 12px 22px 0;
+  font-size: 11px;
+}
+.graph-stage-actions {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  white-space: nowrap;
+}
+.graph-stage-actions output {
+  min-width: 42px;
+  text-align: center;
+  color: #627893;
+  font-variant-numeric: tabular-nums;
 }
 .graph-edge {
   stroke: #9fb4cc;
   stroke-width: 1.5;
   fill: none;
+  transition:
+    opacity 180ms ease,
+    stroke 180ms ease,
+    stroke-width 180ms ease;
 }
 .graph-edge.selected {
   stroke: #2762cb;
   stroke-width: 3;
 }
+.graph-flow-dot {
+  fill: #2762cb;
+  filter: drop-shadow(0 0 4px #2762cb88);
+}
 .graph-node {
   cursor: pointer;
   font-size: 12px;
   fill: #3c5b7d;
+  transform-box: fill-box;
+  transform-origin: center;
+  transition:
+    opacity 180ms ease,
+    filter 180ms ease;
 }
 .graph-node rect {
   fill: white;
   stroke: #bdcfe2;
   stroke-width: 1.2;
   filter: drop-shadow(0px 2px 3px #1745750a);
+  transition:
+    stroke 180ms ease,
+    stroke-width 180ms ease,
+    fill 180ms ease;
 }
 .graph-node.root rect {
   fill: #e9f1ff;
@@ -1101,6 +1140,11 @@ main {
 .graph-node.focused rect {
   stroke: #193c7d;
   stroke-width: 3;
+}
+.graph-node:hover rect {
+  fill: #f2f7ff;
+  stroke: #5788c9;
+  stroke-width: 2;
 }
 .graph-kind {
   font-size: 9px;
@@ -1813,6 +1857,11 @@ footer span {
   .graph-controls {
     padding: 15px;
     gap: 12px;
+  }
+  .graph-stage-toolbar {
+    align-items: flex-start;
+    flex-direction: column;
+    padding: 12px;
   }
   .graph-controls label:first-child {
     flex-basis: 100%;
