@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "id": "ev-octo-summary",
+  "visibility": "public",
+  "demo": false,
+  "paperId": "octo",
+  "kind": "source",
+  "text": "摘要释义：Octo 在 Open X-Embodiment 的 800k 条轨迹上训练通用 Transformer 策略，支持语言或目标图像条件，以及新观测和动作空间下的微调；论文报告 9 个机器人平台的实验。",
+  "url": "https://arxiv.org/abs/2405.12213v2",
+  "locator": "Abstract，arXiv 2405.12213v2 文件第 1 页；中文释义",
+  "status": "verified"
+}

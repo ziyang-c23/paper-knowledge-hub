@@ -1,0 +1,8 @@
+{
+  "schemaVersion": 1,
+  "id": "test-only-private",
+  "visibility": "private",
+  "title": "TEST_ONLY_PRIVATE_MARKER_79f3ac",
+  "note": "TEST_ONLY_PRIVATE_MARKER_79f3ac",
+  "fakeApiKey": "sk-TEST_ONLY_NEVER_A_REAL_CREDENTIAL_97d1"
+}

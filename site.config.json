@@ -1,0 +1,85 @@
+{
+  "name": "Paper Knowledge Hub",
+  "description": "具身智能 · 研究工作台",
+  "showDemoBanner": true,
+  "nav": [
+    {
+      "path": "/",
+      "label": "工作台"
+    },
+    {
+      "path": "/database",
+      "label": "知识库"
+    },
+    {
+      "path": "/topics",
+      "label": "研究专题"
+    },
+    {
+      "path": "/research",
+      "label": "探索"
+    },
+    {
+      "path": "/manage",
+      "label": "设置与维护"
+    }
+  ],
+  "comparisonFields": [
+    {
+      "key": "problem",
+      "label": "研究问题"
+    },
+    {
+      "key": "method",
+      "label": "核心方法"
+    },
+    {
+      "key": "assumptions",
+      "label": "关键假设"
+    },
+    {
+      "key": "inputs",
+      "label": "输入"
+    },
+    {
+      "key": "outputs",
+      "label": "输出"
+    },
+    {
+      "key": "data",
+      "label": "数据要求"
+    },
+    {
+      "key": "tasks",
+      "label": "任务设置"
+    },
+    {
+      "key": "evaluation",
+      "label": "评测条件"
+    },
+    {
+      "key": "limitations",
+      "label": "局限"
+    },
+    {
+      "key": "deployment",
+      "label": "部署时参数更新"
+    },
+    {
+      "key": "memory",
+      "label": "记忆机制"
+    },
+    {
+      "key": "worldModel",
+      "label": "世界模型作用"
+    },
+    {
+      "key": "platform",
+      "label": "平台与环境"
+    }
+  ],
+  "display": {
+    "pageSize": 12,
+    "maxCompare": 4
+  }
+}

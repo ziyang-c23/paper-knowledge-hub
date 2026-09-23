@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "id": "method-target-finetuning",
+  "title": "目标设置微调",
+  "kind": "method",
+  "visibility": "public",
+  "demo": true,
+  "description": "对目标机器人/任务数据微调；不代表部署过程中在线更新。",
+  "aliases": [
+    "target setting finetuning",
+    "新机器人适配"
+  ],
+  "dimension": "learning"
+}

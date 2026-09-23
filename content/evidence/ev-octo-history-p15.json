@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "id": "ev-octo-history-p15",
+  "visibility": "public",
+  "demo": true,
+  "paperId": "octo",
+  "kind": "source",
+  "text": "Octo file page 15 Appendix E：一帧历史在所评估的零样本任务中有益，进一步增加历史未见收益，但作者保留其他任务可能受益的可能性；action chunking 有益，temporal ensembling 在该评测中未在 receding horizon control 之上提供收益。这不是持续记忆或部署参数更新的证据。",
+  "url": "https://arxiv.org/pdf/2405.12213v2",
+  "locator": "PDF file page 15, Appendix E Things that worked and did not work",
+  "status": "verified"
+}

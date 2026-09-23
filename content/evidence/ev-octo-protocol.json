@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "id": "ev-octo-protocol",
+  "visibility": "public",
+  "paperId": "octo",
+  "kind": "source",
+  "text": "论文 §IV 区分开箱与微调：9 个设置、4 家机构；开箱测试匹配预训练机器人设置，以 RGB 和末端增量控制为接口。新力/力矩输入、关节控制与新本体通过约 100 条目标域示范微调评估，不是无需训练的新接口零样本控制。",
+  "url": "https://arxiv.org/pdf/2405.12213v2",
+  "locator": "§IV Evaluation setups；任务细节见 Appendix F 文件第 15–17 页",
+  "status": "verified"
+}

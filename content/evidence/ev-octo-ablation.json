@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "id": "ev-octo-ablation",
+  "visibility": "public",
+  "paperId": "octo",
+  "kind": "source",
+  "text": "WidowX 四任务共 40 次：Octo-Small 83%，RT-X 数据混合 60%，仅 Bridge 43%，离散动作 18%，MSE 35%，ResNet-50+Transformer 70%。差异仅支持本文任务/配方范围。",
+  "url": "https://arxiv.org/pdf/2405.12213v2",
+  "locator": "Table II; full task breakdown in Table VI, file page 17",
+  "status": "verified"
+}

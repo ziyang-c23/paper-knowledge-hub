@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "id": "rel-octo-topic-vla",
+  "visibility": "public",
+  "demo": false,
+  "source": "octo",
+  "target": "topic-vla",
+  "type": "studies",
+  "evidenceIds": [
+    "ev-octo-summary"
+  ],
+  "origin": "curator",
+  "status": "approved"
+}

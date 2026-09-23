@@ -1,0 +1,54 @@
+{
+  "name": "paper-knowledge-hub",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "scripts": {
+    "dev": "npm run build:data && vite --host 127.0.0.1",
+    "build:data": "node scripts/build.mjs",
+    "sync:public": "node scripts/sync-public-content.mjs",
+    "validate": "node scripts/validate.mjs",
+    "build": "npm run build:data && vite build",
+    "preview": "vite preview --host 127.0.0.1",
+    "test": "node --test tests/unit/*.test.mjs tests/integration/*.test.mjs",
+    "test:e2e": "playwright test",
+    "import": "node scripts/import.mjs",
+    "export": "node scripts/export.mjs",
+    "serve:ai": "node --env-file-if-exists=.env services/server.mjs",
+    "demo:clear": "node scripts/demo.mjs",
+    "package": "node scripts/package.mjs",
+    "format": "prettier --write src scripts services tests *.js *.json",
+    "format:check": "prettier --check src scripts services tests *.js *.json",
+    "test:browsers": "playwright install chromium",
+    "note:attach": "node scripts/note-from-markdown.mjs",
+    "workspace": "node scripts/workspace.mjs",
+    "ai:draft": "node scripts/ai-draft.mjs",
+    "ai:prepare": "node scripts/ai-pipeline.mjs",
+    "local": "node --env-file-if-exists=.env services/local-server.mjs",
+    "start": "npm run local",
+    "pdf:import": "node scripts/pdf.mjs",
+    "test:e2e:v2": "playwright test --config playwright.v2.config.js",
+    "study:export": "node scripts/study-export.mjs"
+  },
+  "dependencies": {
+    "ajv": "^8.17.1",
+    "katex": "^0.16.22",
+    "lucide-react": "^0.468.0",
+    "pdfjs-dist": "^6.3.289",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1",
+    "react-markdown": "^10.1.0",
+    "rehype-katex": "^7.0.1",
+    "remark-gfm": "^4.0.1",
+    "remark-math": "^6.0.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.55.0",
+    "fflate": "^0.8.3",
+    "prettier": "^3.9.8",
+    "vite": "^7.1.0"
+  }
+}

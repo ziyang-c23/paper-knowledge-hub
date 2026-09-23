@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "visibility": "private",
+  "id": "my-topic",
+  "title": "专题名称",
+  "description": "范围与定义",
+  "dimensions": [
+    "分类维度"
+  ],
+  "branches": [],
+  "questions": [
+    "最需要比较的问题"
+  ],
+  "boundaries": "尚待核实的分类边界"
+}

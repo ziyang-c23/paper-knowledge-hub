@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "id": "ev-octo-training",
+  "visibility": "public",
+  "paperId": "octo",
+  "kind": "source",
+  "text": "Base 用 batch 2048 训练 300k 步，TPU v4-128 约 14h；微调全策略 50k 步，24GB A5000 约 5h。预训练 2 帧历史，head 20 步 cosine diffusion。冻结 T5，策略全模型微调。",
+  "url": "https://arxiv.org/pdf/2405.12213v2",
+  "locator": "§III-C/D; Appendix D, file pages 14–15",
+  "status": "verified"
+}

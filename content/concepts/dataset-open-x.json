@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "id": "dataset-open-x",
+  "title": "Open X-Embodiment",
+  "kind": "dataset",
+  "visibility": "public",
+  "demo": true,
+  "description": "多机器人演示数据集合；OpenVLA 与 Octo 使用不同数据混合，轨迹数量不能互换。",
+  "aliases": [
+    "OXE",
+    "Open-X",
+    "Open X Embodiment"
+  ],
+  "dimension": "dataset"
+}

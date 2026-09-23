@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "id": "rel-local-octo-method-observation-history",
+  "visibility": "public",
+  "demo": false,
+  "source": "octo",
+  "target": "method-observation-history",
+  "type": "uses",
+  "evidenceIds": [
+    "ev-octo-history-p15"
+  ],
+  "origin": "source",
+  "status": "approved"
+}

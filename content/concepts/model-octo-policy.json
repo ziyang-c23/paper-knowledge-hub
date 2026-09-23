@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "id": "model-octo-policy",
+  "title": "Octo 通用机器人策略",
+  "kind": "model",
+  "visibility": "public",
+  "description": "Octo 策略的模型与接口索引：语言/目标图像条件、模块化观测编码、Transformer 与连续扩散动作头；实验论证统一回到论文笔记。",
+  "aliases": [
+    "Octo policy"
+  ]
+}

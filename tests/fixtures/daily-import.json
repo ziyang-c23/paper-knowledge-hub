@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "papers": [
+    {
+      "schemaVersion": 1,
+      "id": "test-only-loop",
+      "title": "TEST ONLY — Synthetic Workflow Fixture",
+      "year": 2026,
+      "authors": ["Synthetic Test Author"],
+      "url": "https://example.org/test-only",
+      "visibility": "public",
+      "topics": ["topic-vla"],
+      "note": "## TEST ONLY\n\n闭环测试唯一关键词 loopmarker。此数据仅用于测试，不是真实研究。\n\n| 条件 | 值 |\n| --- | --- |\n| 来源 | 虚构测试 |\n\n公式 $a^2+b^2=c^2$。\n\n```python\nprint('test only')\n```",
+      "tags": ["TEST ONLY"],
+      "status": "reading"
+    }
+  ],
+  "topics": [],
+  "concepts": [],
+  "evidence": [
+    {
+      "schemaVersion": 1,
+      "id": "test-only-evidence",
+      "paperId": "test-only-loop",
+      "kind": "note",
+      "text": "TEST ONLY synthetic evidence for integration testing; loopmarker。",
+      "status": "verified",
+      "visibility": "public"
+    }
+  ],
+  "relations": [
+    {
+      "schemaVersion": 1,
+      "id": "test-only-relation",
+      "source": "test-only-loop",
+      "target": "topic-vla",
+      "type": "studies",
+      "evidenceIds": ["test-only-evidence"],
+      "origin": "curator",
+      "status": "approved",
+      "visibility": "public"
+    }
+  ]
+}

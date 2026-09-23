@@ -1,0 +1,499 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Paper Knowledge Hub dataset v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "papers", "topics", "concepts", "relations", "evidence"],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "papers": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/paper"
+      }
+    },
+    "topics": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/topic"
+      }
+    },
+    "concepts": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/concept"
+      }
+    },
+    "relations": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/relation"
+      }
+    },
+    "evidence": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/evidence"
+      }
+    }
+  },
+  "definitions": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+      "maxLength": 120
+    },
+    "text": {
+      "type": "string",
+      "maxLength": 200000
+    },
+    "strings": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true
+    },
+    "ids": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/id"
+      },
+      "uniqueItems": true
+    },
+    "url": {
+      "type": "string",
+      "pattern": "^https://[^\\s]+$"
+    },
+    "paper": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaVersion", "id", "title", "year", "authors", "url", "visibility"],
+      "properties": {
+        "schemaVersion": {
+          "const": 1
+        },
+        "id": {
+          "$ref": "#/definitions/id"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1
+        },
+        "visibility": {
+          "enum": ["public", "private"]
+        },
+        "demo": {
+          "type": "boolean"
+        },
+        "privateNotes": {
+          "$ref": "#/definitions/text"
+        },
+        "year": {
+          "type": "integer",
+          "minimum": 1900,
+          "maximum": 2200
+        },
+        "authors": {
+          "$ref": "#/definitions/strings"
+        },
+        "url": {
+          "$ref": "#/definitions/url"
+        },
+        "status": {
+          "enum": ["unread", "reading", "reviewed"]
+        },
+        "topics": {
+          "$ref": "#/definitions/ids"
+        },
+        "tags": {
+          "$ref": "#/definitions/strings"
+        },
+        "aliases": {
+          "$ref": "#/definitions/strings"
+        },
+        "abstract": {
+          "$ref": "#/definitions/text"
+        },
+        "note": {
+          "$ref": "#/definitions/text"
+        },
+        "arxiv": {
+          "type": "string",
+          "pattern": "^(?:https://arxiv.org/abs/)?(?:[0-9]{4}\\.[0-9]{4,5}|[a-z.-]+/[0-9]{7})(?:v[0-9]+)?$"
+        },
+        "doi": {
+          "type": "string",
+          "minLength": 1
+        },
+        "version": {
+          "type": "string"
+        },
+        "updated": {
+          "type": "string",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+        },
+        "acronym": {
+          "type": "string"
+        },
+        "problem": {
+          "$ref": "#/definitions/text"
+        },
+        "method": {
+          "$ref": "#/definitions/text"
+        },
+        "assumptions": {
+          "$ref": "#/definitions/text"
+        },
+        "inputs": {
+          "$ref": "#/definitions/text"
+        },
+        "outputs": {
+          "$ref": "#/definitions/text"
+        },
+        "data": {
+          "$ref": "#/definitions/text"
+        },
+        "tasks": {
+          "$ref": "#/definitions/text"
+        },
+        "evaluation": {
+          "$ref": "#/definitions/text"
+        },
+        "limitations": {
+          "$ref": "#/definitions/text"
+        },
+        "conclusions": {
+          "$ref": "#/definitions/text"
+        },
+        "deployment": {
+          "$ref": "#/definitions/text"
+        },
+        "memory": {
+          "$ref": "#/definitions/text"
+        },
+        "worldModel": {
+          "$ref": "#/definitions/text"
+        },
+        "platform": {
+          "$ref": "#/definitions/text"
+        },
+        "lifecycle": {
+          "enum": ["draft", "active", "archived"]
+        },
+        "personalAnalysis": {
+          "$ref": "#/definitions/text"
+        },
+        "facets": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "problem": {
+              "$ref": "#/definitions/ids"
+            },
+            "architecture": {
+              "$ref": "#/definitions/ids"
+            },
+            "learning": {
+              "$ref": "#/definitions/ids"
+            },
+            "memory": {
+              "$ref": "#/definitions/ids"
+            },
+            "deployment": {
+              "$ref": "#/definitions/ids"
+            },
+            "task": {
+              "$ref": "#/definitions/ids"
+            },
+            "dataset": {
+              "$ref": "#/definitions/ids"
+            },
+            "environment": {
+              "$ref": "#/definitions/ids"
+            }
+          }
+        },
+        "claimEvidence": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/ids"
+          }
+        },
+        "customProperties": {
+          "type": "object",
+          "maxProperties": 64,
+          "propertyNames": {
+            "$ref": "#/definitions/id"
+          },
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 10000
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              },
+              {
+                "type": "array",
+                "maxItems": 10000,
+                "uniqueItems": true,
+                "items": {
+                  "type": "string",
+                  "maxLength": 120
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    "topic": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaVersion", "id", "title", "visibility"],
+      "properties": {
+        "schemaVersion": {
+          "const": 1
+        },
+        "id": {
+          "$ref": "#/definitions/id"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1
+        },
+        "visibility": {
+          "enum": ["public", "private"]
+        },
+        "demo": {
+          "type": "boolean"
+        },
+        "description": {
+          "$ref": "#/definitions/text"
+        },
+        "dimensions": {
+          "$ref": "#/definitions/strings"
+        },
+        "branches": {
+          "$ref": "#/definitions/strings"
+        },
+        "questions": {
+          "$ref": "#/definitions/strings"
+        },
+        "boundaries": {
+          "$ref": "#/definitions/text"
+        },
+        "analysis": {
+          "$ref": "#/definitions/text"
+        },
+        "gaps": {
+          "$ref": "#/definitions/strings"
+        },
+        "evidenceIds": {
+          "$ref": "#/definitions/ids"
+        },
+        "compareIds": {
+          "$ref": "#/definitions/ids"
+        }
+      }
+    },
+    "concept": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaVersion", "id", "title", "kind", "visibility"],
+      "properties": {
+        "schemaVersion": {
+          "const": 1
+        },
+        "id": {
+          "$ref": "#/definitions/id"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1
+        },
+        "visibility": {
+          "enum": ["public", "private"]
+        },
+        "demo": {
+          "type": "boolean"
+        },
+        "kind": {
+          "enum": [
+            "concept",
+            "method",
+            "dataset",
+            "person",
+            "institution",
+            "project",
+            "problem",
+            "model",
+            "environment",
+            "benchmark"
+          ]
+        },
+        "description": {
+          "$ref": "#/definitions/text"
+        },
+        "aliases": {
+          "$ref": "#/definitions/strings"
+        },
+        "dimension": {
+          "enum": [
+            "problem",
+            "architecture",
+            "learning",
+            "memory",
+            "deployment",
+            "task",
+            "dataset",
+            "environment"
+          ]
+        },
+        "lifecycle": {
+          "enum": ["active", "archived"]
+        },
+        "url": {
+          "$ref": "#/definitions/url"
+        },
+        "note": {
+          "$ref": "#/definitions/text"
+        },
+        "relatedIds": {
+          "$ref": "#/definitions/ids"
+        },
+        "sources": {
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["title", "url"],
+            "properties": {
+              "title": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500
+              },
+              "url": {
+                "$ref": "#/definitions/url"
+              },
+              "note": {
+                "$ref": "#/definitions/text"
+              }
+            }
+          }
+        }
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaVersion", "id", "paperId", "kind", "text", "status", "visibility"],
+      "properties": {
+        "schemaVersion": {
+          "const": 1
+        },
+        "id": {
+          "$ref": "#/definitions/id"
+        },
+        "visibility": {
+          "enum": ["public", "private"]
+        },
+        "demo": {
+          "type": "boolean"
+        },
+        "paperId": {
+          "$ref": "#/definitions/id"
+        },
+        "kind": {
+          "enum": ["source", "note", "model", "unverified"]
+        },
+        "text": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 20000
+        },
+        "url": {
+          "$ref": "#/definitions/url"
+        },
+        "locator": {
+          "type": "string"
+        },
+        "status": {
+          "enum": ["verified", "unverified"]
+        },
+        "documentId": {
+          "type": "string"
+        },
+        "pageIndex": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "pageLabel": {
+          "type": "string"
+        },
+        "quote": {
+          "$ref": "#/definitions/text"
+        }
+      }
+    },
+    "relation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "id",
+        "source",
+        "target",
+        "type",
+        "evidenceIds",
+        "origin",
+        "status",
+        "visibility"
+      ],
+      "properties": {
+        "schemaVersion": {
+          "const": 1
+        },
+        "id": {
+          "$ref": "#/definitions/id"
+        },
+        "visibility": {
+          "enum": ["public", "private"]
+        },
+        "demo": {
+          "type": "boolean"
+        },
+        "source": {
+          "$ref": "#/definitions/id"
+        },
+        "target": {
+          "$ref": "#/definitions/id"
+        },
+        "type": {
+          "enum": ["studies", "uses", "extends", "related", "cites"]
+        },
+        "evidenceIds": {
+          "$ref": "#/definitions/ids"
+        },
+        "origin": {
+          "enum": ["source", "curator", "model", "similarity"]
+        },
+        "status": {
+          "enum": ["approved", "pending", "rejected"]
+        }
+      }
+    }
+  }
+}

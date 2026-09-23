@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "id": "ev-octo-gripper-p15",
+  "visibility": "public",
+  "demo": true,
+  "paperId": "octo",
+  "kind": "source",
+  "text": "Octo file page 15 Appendix E：相对 gripper 表示虽带来稍高抓取成功率，却减少失败后的重试，整体表现更差，最终选择绝对表示。该取舍依赖本文设置，不能归纳为所有机器人动作表示的统一结论。",
+  "url": "https://arxiv.org/pdf/2405.12213v2",
+  "locator": "PDF file page 15, Appendix E Relative Gripper Action Representation",
+  "status": "verified"
+}

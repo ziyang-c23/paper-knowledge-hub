@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "id": "my-paper",
+  "title": "Replace with the verified paper title",
+  "year": 2026,
+  "authors": [
+    "Replace with verified author"
+  ],
+  "url": "https://example.org/replace-with-source",
+  "visibility": "private"
+}

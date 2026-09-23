@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "id": "ev-octo-generalization",
+  "visibility": "public",
+  "paperId": "octo",
+  "kind": "source",
+  "text": "WidowX / Octo-Small：分布内 85%，新物体 80%，新环境 40%，新技能 5%；每种泛化类型两项任务，共 20 次。不能推为任意任务零样本泛化。",
+  "url": "https://arxiv.org/pdf/2405.12213v2",
+  "locator": "Table VII, Zero-shot Generalization Analysis",
+  "status": "verified"
+}

@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "id": "rel-octo-method-diffusion",
+  "visibility": "public",
+  "demo": false,
+  "source": "octo",
+  "target": "method-diffusion",
+  "type": "uses",
+  "evidenceIds": [
+    "ev-octo-method"
+  ],
+  "origin": "source",
+  "status": "approved"
+}

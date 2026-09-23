@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "visibility": "private",
+  "id": "ev-my-paper-claim",
+  "paperId": "my-paper",
+  "kind": "source",
+  "text": "从实际读取的原文整理，不编造精确位置。",
+  "status": "unverified",
+  "url": "https://example.org/replace-with-source"
+}

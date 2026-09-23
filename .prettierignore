@@ -1,0 +1,10 @@
+node_modules
+dist
+src/generated
+content
+private
+artifacts
+playwright-report
+test-results
+tmp
+package-lock.json

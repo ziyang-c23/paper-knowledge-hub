@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "id": "ev-octo-data",
+  "visibility": "public",
+  "paperId": "octo",
+  "kind": "source",
+  "text": "筛选 OXE 的 25 个数据集约 800k 轨迹；去掉无图像/非末端增量控制等数据，按多样性调整采样。Fractal/Kuka/Bridge 每 batch 期望占比各 17%；绝对夹爪 1 开、0 关。",
+  "url": "https://arxiv.org/pdf/2405.12213v2",
+  "locator": "§III-B; continuation page 5 and Table III page 14",
+  "status": "verified"
+}

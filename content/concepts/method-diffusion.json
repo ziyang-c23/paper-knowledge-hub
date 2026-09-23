@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "id": "method-diffusion",
+  "title": "Diffusion action head",
+  "kind": "method",
+  "visibility": "public",
+  "demo": true,
+  "description": "以迭代去噪方式生成机器人动作；此处由 Octo 方法段支持。",
+  "aliases": [
+    "diffusion",
+    "扩散动作头",
+    "diffusion policy"
+  ],
+  "dimension": "architecture"
+}

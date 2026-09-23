@@ -1,0 +1,148 @@
+{
+  "version": 1,
+  "labelledBeforeFirstRun": true,
+  "scope": "Two public source PDFs, original V1 notes; labels checked against rendered source pages by the implementing agent, not independent human adjudication.",
+  "queries": [
+    {
+      "id": "dev-lora",
+      "split": "dev",
+      "query": "LoRA rank",
+      "scope": "pdf",
+      "acceptable": [
+        {
+          "paperId": "openvla",
+          "pageIndex": 10
+        }
+      ],
+      "basis": "OpenVLA v3 file page 10 §5.3 discusses rank and Table 1; source footnote limits this experiment to a smaller model/data mixture."
+    },
+    {
+      "id": "dev-readout",
+      "split": "dev",
+      "query": "readout tokens",
+      "scope": "pdf",
+      "acceptable": [
+        {
+          "paperId": "octo",
+          "pageIndex": 4
+        }
+      ],
+      "basis": "Octo v2 file page 4 explains readout tokens and diffusion head."
+    },
+    {
+      "id": "dev-history",
+      "split": "dev",
+      "query": "history action chunking",
+      "scope": "pdf",
+      "acceptable": [
+        {
+          "paperId": "octo",
+          "pageIndex": 15
+        }
+      ],
+      "basis": "Octo appendix E file page 15 describes history and action chunking, with task-scope caveats."
+    },
+    {
+      "id": "dev-absent",
+      "split": "dev",
+      "query": "XENON_UNSEEN_987654",
+      "scope": "all",
+      "acceptable": [],
+      "basis": "Deliberate absent literal; require no direct/expanded result, not invented answer."
+    },
+    {
+      "id": "heldout-mixture",
+      "split": "heldout",
+      "query": "DROID training mixture",
+      "scope": "pdf",
+      "acceptable": [
+        {
+          "paperId": "openvla",
+          "pageIndex": 21
+        }
+      ],
+      "basis": "OpenVLA appendix A Table 3 on file page 21 gives mixture and DROID last-third removal footnote."
+    },
+    {
+      "id": "heldout-quantization",
+      "split": "heldout",
+      "query": "quantization memory",
+      "scope": "pdf",
+      "acceptable": [
+        {
+          "paperId": "openvla",
+          "pageIndex": 10
+        }
+      ],
+      "basis": "OpenVLA file page 10 §5.4 and Table 2 give quantization memory, footnote 4 narrows model/data configuration."
+    },
+    {
+      "id": "heldout-gripper",
+      "split": "heldout",
+      "query": "relative gripper action representation",
+      "scope": "pdf",
+      "acceptable": [
+        {
+          "paperId": "octo",
+          "pageIndex": 15
+        }
+      ],
+      "basis": "Octo appendix E file page 15 describes absolute vs relative gripper representation and retrying behavior."
+    },
+    {
+      "id": "heldout-absent",
+      "split": "heldout",
+      "query": "UNSEEN_NEPTUNE_246810",
+      "scope": "all",
+      "acceptable": [],
+      "basis": "Different absent literal, require no results."
+    },
+    {
+      "id": "final-frozen",
+      "split": "final",
+      "query": "frozen vision",
+      "scope": "pdf",
+      "acceptable": [
+        {
+          "paperId": "openvla",
+          "pageIndex": 10
+        }
+      ],
+      "basis": "OpenVLA file page 10 defines frozen vision in §5.3 and Table 1."
+    },
+    {
+      "id": "final-shuffle",
+      "split": "final",
+      "query": "shuffle buffer",
+      "scope": "pdf",
+      "acceptable": [
+        {
+          "paperId": "octo",
+          "pageIndex": 15
+        }
+      ],
+      "basis": "Octo appendix E file page 15 compares 20k and up-to-500k shuffle buffer settings."
+    },
+    {
+      "id": "final-tokenizers",
+      "split": "final",
+      "query": "modality specific tokenizers",
+      "scope": "pdf",
+      "acceptable": [
+        {
+          "paperId": "octo",
+          "pageIndex": 4
+        }
+      ],
+      "basis": "Octo file page 4 describes language and image tokenizers."
+    },
+    {
+      "id": "final-absent",
+      "split": "final",
+      "query": "QZV999_NEPTUNE_UNKNOWN837",
+      "scope": "all",
+      "acceptable": [],
+      "basis": "Fresh absent identifier query prepared after the dev-driven fix and before final run."
+    }
+  ]
+}

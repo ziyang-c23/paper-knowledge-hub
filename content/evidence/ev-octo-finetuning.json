@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "id": "ev-octo-finetuning",
+  "visibility": "public",
+  "paperId": "octo",
+  "kind": "source",
+  "text": "六域成功率 Octo：70/75/50/60/100/80%，原表平均 72%；Scratch 平均 20%，VC-1 15%。约 100 条示范。主表称每域 20 次，双臂附录称 10 次，次数口径冲突。",
+  "url": "https://arxiv.org/pdf/2405.12213v2",
+  "locator": "Table I; §IV-B; compare Appendix F, file page 17",
+  "status": "verified"
+}

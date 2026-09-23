@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "id": "method-observation-history",
+  "title": "有限观测历史",
+  "kind": "method",
+  "visibility": "public",
+  "demo": true,
+  "description": "把过去观测作为策略输入；不同于持续记忆或参数更新。",
+  "aliases": [
+    "observation history",
+    "历史观测"
+  ],
+  "dimension": "memory"
+}

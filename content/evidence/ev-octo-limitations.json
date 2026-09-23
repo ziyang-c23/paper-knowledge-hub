@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "id": "ev-octo-limitations",
+  "visibility": "public",
+  "paperId": "octo",
+  "kind": "source",
+  "text": "作者报告腕部输入有时不如单第三视角；语言与目标图像存在性能差距。仅 27% 数据含腕部相机、56% 含语言。未展示在线/次优数据学习或导航/移动操作。",
+  "url": "https://arxiv.org/pdf/2405.12213v2",
+  "locator": "§V Discussion and Future Work",
+  "status": "verified"
+}

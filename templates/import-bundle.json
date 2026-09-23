@@ -1,0 +1,70 @@
+{
+  "schemaVersion": 1,
+  "papers": [
+    {
+      "schemaVersion": 1,
+      "id": "my-paper",
+      "title": "Replace with the verified paper title",
+      "year": 2026,
+      "authors": [
+        "Replace with verified author"
+      ],
+      "url": "https://example.org/replace-with-source",
+      "visibility": "private"
+    }
+  ],
+  "topics": [
+    {
+      "schemaVersion": 1,
+      "visibility": "private",
+      "id": "my-topic",
+      "title": "专题名称",
+      "description": "范围与定义",
+      "dimensions": [
+        "分类维度"
+      ],
+      "branches": [],
+      "questions": [
+        "最需要比较的问题"
+      ],
+      "boundaries": "尚待核实的分类边界"
+    }
+  ],
+  "concepts": [
+    {
+      "schemaVersion": 1,
+      "visibility": "private",
+      "id": "my-concept",
+      "title": "概念或方法名称",
+      "kind": "concept",
+      "description": "定义与边界"
+    }
+  ],
+  "relations": [
+    {
+      "schemaVersion": 1,
+      "visibility": "private",
+      "id": "rel-my-paper-concept",
+      "source": "my-paper",
+      "target": "my-concept",
+      "type": "uses",
+      "evidenceIds": [
+        "ev-my-paper-claim"
+      ],
+      "origin": "curator",
+      "status": "pending"
+    }
+  ],
+  "evidence": [
+    {
+      "schemaVersion": 1,
+      "visibility": "private",
+      "id": "ev-my-paper-claim",
+      "paperId": "my-paper",
+      "kind": "source",
+      "text": "从实际读取的原文整理，不编造精确位置。",
+      "status": "unverified",
+      "url": "https://example.org/replace-with-source"
+    }
+  ]
+}

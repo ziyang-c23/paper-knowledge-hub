@@ -1,0 +1,41 @@
+{
+  "schemaVersion": 1,
+  "id": "topic-vla",
+  "title": "VLA 与通用机器人策略",
+  "visibility": "public",
+  "demo": true,
+  "description": "从语言和图像走向动作：比较接口、训练数据、适配方式与实时约束。",
+  "dimensions": [
+    "动作表示",
+    "预训练来源",
+    "目标域适配",
+    "观测历史",
+    "控制频率"
+  ],
+  "branches": [
+    "动作 token 路线：RT-2 / OpenVLA（同类表示，不表示继承）",
+    "通用策略适配：Octo",
+    "感知与语言基础：PaLM-E"
+  ],
+  "questions": [
+    "语义泛化是否伴随新运动技能？",
+    "离散 token 与 diffusion head 各受什么约束？",
+    "适配需要多少目标域演示？"
+  ],
+  "boundaries": "RT-2/OpenVLA 是动作 token VLA；Octo 用作通用策略对照，PaLM-E 用作多模态规划基础。主题成员不等于方法继承。",
+  "analysis": "## 整理者阶段性理解（公开论文的本地示例，不代表用户研究结论）\n\n本专题问：通用机器人策略如何把视觉/语言信息转成动作，并在新设置适配？范围是 RT-2、原始 OpenVLA v3 与 Octo v2；PaLM-E 仅提供背景，不当作同一控制策略横向排名。\n\n**机制分支。** RT-2 和 OpenVLA 把动作离散成 token；Octo 以模块化 token/readout 连接扩散动作头（ev-rt-2-method、ev-openvla-method、ev-octo-method，Octo 原文 file page 4）。这能组织架构选择，但不能从表示方式直接推导谁一定更强。\n\n**比较条件。** OpenVLA 和 Octo 都使用 Open X-Embodiment，但数据混合、规模、任务集合、适配数据和指标不一致。OpenVLA file page 10 的 LoRA/量化实验还使用更小的数据混合与 SigLIP-only 变体（脚注 4）。共享数据集不等于成功率可直接比较；先检查任务、评估次数、是否微调与模型版本。\n\n**历史与行为。** Octo Appendix E 的有限历史与 action chunking 结果说明输入历史和控制执行方式会影响表现；它们不能自动被称为长期记忆。gripper 表示的“抓取率略高但重试更少、总体更差”提醒我们区分局部指标与任务行为（ev-octo-history-p15、ev-octo-gripper-p15）。\n\n**部署时更新参数：当前未知。** 本例证据明确区分目标设置微调、推理量化与历史输入，但没有逐一审计部署控制循环或代码版本。不能由“支持微调”推出“部署时在线更新”，也不把未记录写成确定不更新。\n\n下一步应选择一个相同机器人、相同数据和任务的受控比较，再记录成功率、时延、失败恢复及数据预算。该建议是整理者推断，尚未运行实验。",
+  "gaps": [
+    "本库尚未为三篇工作建立统一任务/数据预算/成功率定义的可比较实验表，不等于领域没有此类研究。",
+    "部署时在线参数更新缺少对指定代码版本和运行循环的核验，保持未知。",
+    "PDF 表格和公式只有原页定位与局部视觉核对，自动结构化提取未验证。",
+    "有限观测历史、持续记忆与模型参数适应需要分别定义；本例不把三者混为同一种能力。"
+  ],
+  "evidenceIds": [
+    "ev-octo-method",
+    "ev-octo-history-p15",
+    "ev-octo-gripper-p15"
+  ],
+  "compareIds": [
+    "octo"
+  ]
+}

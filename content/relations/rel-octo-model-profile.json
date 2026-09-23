@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "id": "rel-octo-model-profile",
+  "visibility": "public",
+  "demo": false,
+  "source": "octo",
+  "target": "model-octo-policy",
+  "type": "related",
+  "evidenceIds": [
+    "ev-octo-method"
+  ],
+  "origin": "curator",
+  "status": "approved"
+}

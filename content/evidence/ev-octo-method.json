@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "id": "ev-octo-method",
+  "visibility": "public",
+  "demo": true,
+  "paperId": "octo",
+  "kind": "source",
+  "text": "论文 §III-A：Octo 采用 Transformer 骨干和模块化 tokenization/readout，动作通过 diffusion head 生成；支持适配不同观测与动作空间。",
+  "url": "https://arxiv.org/html/2405.12213v2#S3.SS1",
+  "locator": "§III-A Architecture",
+  "status": "verified"
+}

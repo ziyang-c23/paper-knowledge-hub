@@ -1,0 +1,12 @@
+node_modules/
+dist/
+src/generated/
+private/
+.env
+.env.*
+!.env.example
+playwright-report/
+test-results/
+tmp/
+*.zip
+.DS_Store

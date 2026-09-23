@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "visibility": "private",
+  "id": "rel-my-paper-concept",
+  "source": "my-paper",
+  "target": "my-concept",
+  "type": "uses",
+  "evidenceIds": [
+    "ev-my-paper-claim"
+  ],
+  "origin": "curator",
+  "status": "pending"
+}
