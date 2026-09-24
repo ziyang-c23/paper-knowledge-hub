@@ -122,6 +122,8 @@ function ExperimentExplorer({ groups }) {
   useEffect(() => {
     if (requestedGroup && groups.some((item) => item.id === requestedGroup)) {
       setGroupId(requestedGroup);
+      setHidden([]);
+      setTask('');
       requestAnimationFrame(() =>
         document.querySelector('.experiment-explorer')?.scrollIntoView({ block: 'start' }),
       );

@@ -204,3 +204,48 @@
   outline: 2px solid #386f59;
   outline-offset: 3px;
 }
+
+/* The source view is a reading desk, not a pair of equally weighted cards. */
+.paper-page .reading-split {
+  grid-template-columns: minmax(0, 0.88fr) minmax(0, 1.12fr);
+  gap: 28px;
+  margin-bottom: 26px;
+}
+.paper-page .reading-split > section {
+  max-height: calc(100vh - 190px);
+  padding: 0;
+  border: 0;
+  border-top: 1px solid var(--paper-rule, #dfe6df);
+  border-radius: 0;
+  background: transparent;
+}
+.paper-page .reading-split > section[aria-label='并排阅读笔记'] {
+  max-width: 760px;
+  padding-top: 4px;
+}
+.paper-page .reader-toolbar {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--paper-rule, #dfe6df);
+  color: var(--paper-muted, #718078);
+}
+.paper-page .pdf-reader {
+  padding-top: 10px;
+}
+.paper-page .reader-notes {
+  margin: 0 0 34px;
+  padding: 18px 0;
+  border-top: 1px solid var(--paper-rule, #dfe6df);
+  border-bottom: 1px solid var(--paper-rule, #dfe6df);
+  background: transparent;
+}
+@media (max-width: 900px) {
+  .paper-page .reading-split {
+    grid-template-columns: 1fr;
+  }
+  .paper-page .reading-split > section {
+    max-height: none;
+  }
+  .paper-page .reading-split > section[aria-label='并排阅读笔记'] {
+    order: 2;
+  }
+}

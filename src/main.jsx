@@ -860,6 +860,7 @@ function PaperPage({ route, selected, toggle, notify, workspace, refresh }) {
         </button>
         {sourcePreview && <Evidence e={sourcePreview} />}
       </dialog>
+      <div className="paper-page">
       <div className="backline">
         <a
           href={
@@ -893,7 +894,21 @@ function PaperPage({ route, selected, toggle, notify, workspace, refresh }) {
         </p>
       </details>
       <p className="paper-guide">{p.problem || p.visuals?.guide}</p>
-      <details className="paper-tools" open={window.innerWidth > 900}>
+      <div className="paper-orientation" aria-label="论文导读">
+        <div>
+          <span className="paper-orientation-label">核心改变</span>
+          <p>{p.method || '先从方法与实验条件开始，建立对论文贡献的整体判断。'}</p>
+        </div>
+        <div>
+          <span className="paper-orientation-label">建议阅读</span>
+          <p>方法 → 实验条件 → 结果边界</p>
+        </div>
+        <div>
+          <span className="paper-orientation-label">先记住</span>
+          <p>{p.limitations || '结论只在论文报告的任务、数据和适配条件下成立。'}</p>
+        </div>
+      </div>
+      <details className="paper-tools">
         <summary>资源与操作 · 原文、代码、引用、编辑</summary>
         {p.visuals?.resources?.length > 0 && (
           <div className="row wrap">
@@ -970,7 +985,7 @@ function PaperPage({ route, selected, toggle, notify, workspace, refresh }) {
           </button>
         </div>
       </details>
-      <nav className="reading-toolbar" aria-label="阅读模式">
+      <nav className="reading-toolbar paper-mode-nav" aria-label="阅读模式">
         {[
           ['overview', '研究速览'],
           ['note', '阅读笔记'],
@@ -1197,6 +1212,7 @@ function PaperPage({ route, selected, toggle, notify, workspace, refresh }) {
             <p>阅读状态来自主数据。比较选择仅保存在当前浏览器。</p>
           </section>
         </aside>
+      </div>
       </div>
     </>
   );
