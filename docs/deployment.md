@@ -17,7 +17,7 @@ Node 22.13+，npm；本地持久工作台按 [README](../README.md) 初始化后
 3. `.github/workflows/deploy.yml` 在 main 的 push 或手动 `workflow_dispatch` 时运行。部署流程先 validate、test、build、e2e，再 upload-pages-artifact，只上传 dist/；因此每次合入 main 都会更新公开示例，其他分支不会直接发布。
 4. 等待 deploy-pages 成功，使用真实步骤返回的 URL；实际打开首页、详情 hash、刷新、搜索。失败时先查 Pages 配置/权限/资源 404，不宣称部署成功。
 
-模板已在本机用严格静态服务器挂载 `/paper-knowledge-hub/` 验证资源和深链接，不依赖 catch-all rewrite 或 GitHub 404 fallback。已确认的公开站点为 [ziyang-c23.github.io/paper-knowledge-hub](https://ziyang-c23.github.io/paper-knowledge-hub/)，最近一次 Pages 部署对应提交 `910608c`；后续本地修改只有在 main 的 workflow 成功后才算线上更新。
+模板已在本机用严格静态服务器挂载 `/paper-knowledge-hub/` 验证资源和深链接，不依赖 catch-all rewrite 或 GitHub 404 fallback。已确认的公开站点为 [ziyang-c23.github.io/paper-knowledge-hub](https://ziyang-c23.github.io/paper-knowledge-hub/)。本轮最后一次校验与 Pages 部署均已成功，对应提交 `283a682`；线上读回已确认论文方法图、笔记正文、实验筛选正常，公开页面没有编辑入口、本地 API 或私有 PDF 链接。
 
 ## 可选网关
 
