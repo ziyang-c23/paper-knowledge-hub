@@ -860,6 +860,7 @@ function PaperPage({ route, selected, toggle, notify, workspace, refresh }) {
         </button>
         {sourcePreview && <Evidence e={sourcePreview} />}
       </dialog>
+      {/* prettier-ignore */}
       <div className="paper-page">
       <div className="backline">
         <a
