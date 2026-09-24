@@ -218,7 +218,11 @@ function normalizeTitle(value) {
     .toLowerCase()
     .replace(/[\p{P}\p{S}\s]+/gu, '');
 }
-export async function putRecord(
+export async function putRecord(root, options) {
+  return withWorkspaceLock(root, () => putRecordUnlocked(root, options));
+}
+// Internal composition point: callers must already hold withWorkspaceLock.
+export async function putRecordUnlocked(
   root,
   {
     collection,
@@ -229,80 +233,155 @@ export async function putRecord(
     createOnly = false,
   },
 ) {
-  return withWorkspaceLock(root, async () => {
-    const store = await readWorkspace(root);
-    requireRevision(store, expectedRevision);
-    if (!collections.includes(collection) || !record || !stableId.test(record.id || ''))
-      throw fail('Valid collection and stable record ID required');
-    const previous = store.dataset[collection].find((x) => x.id === record.id);
-    if (createOnly && previous)
-      throw fail('Record ID already exists. Open the existing record to edit.', 409, {
-        existingId: record.id,
-      });
+  const store = await readWorkspace(root);
+  requireRevision(store, expectedRevision);
+  if (!collections.includes(collection) || !record || !stableId.test(record.id || ''))
+    throw fail('Valid collection and stable record ID required');
+  const previous = store.dataset[collection].find((x) => x.id === record.id);
+  if (createOnly && previous)
+    throw fail('Record ID already exists. Open the existing record to edit.', 409, {
+      existingId: record.id,
+    });
+  if (
+    record.visibility === 'public' &&
+    JSON.stringify(previous) !== JSON.stringify(record) &&
+    publishConsent !== true
+  )
+    throw fail('Explicit publishConsent is required to publish or change a public record', 403);
+  if (collection === 'papers') {
+    for (const p of store.dataset.papers) {
+      if (p.id === record.id) continue;
+      if (
+        (record.doi && p.doi && normalizeDOI(record.doi) === normalizeDOI(p.doi)) ||
+        (record.arxiv && p.arxiv && normalizeArxiv(record.arxiv) === normalizeArxiv(p.arxiv)) ||
+        normalizeTitle(record.title) === normalizeTitle(p.title)
+      )
+        throw fail(`Duplicate paper already exists: ${p.id}. Edit the existing record.`, 409, {
+          existingId: p.id,
+        });
+    }
+  }
+  const next = structuredClone(store);
+  const index = next.dataset[collection].findIndex((x) => x.id === record.id);
+  if (index >= 0) next.dataset[collection][index] = record;
+  else next.dataset[collection].push(record);
+  const errors = [
+    ...validateData(next.dataset),
+    ...validateDatabase(next.database || defaultDatabase(), next.dataset),
+  ];
+  if (errors.length) throw fail(errors.join('; '), 422, errors);
+  if (collection === 'evidence') {
+    if (record.pageIndex !== undefined && record.documentId === undefined)
+      throw fail('Evidence pageIndex requires an attached documentId', 422);
+    if (record.documentId !== undefined) {
+      if (!store.documentIds.includes(record.documentId))
+        throw fail('Evidence documentId is not attached to this workspace', 422);
+      let document;
+      try {
+        document = JSON.parse(
+          await readFile(
+            path.join(await safePrivate(root), 'documents', record.documentId + '.json'),
+            'utf8',
+          ),
+        );
+      } catch {
+        throw fail('Evidence document metadata is unavailable or invalid', 422);
+      }
+      if (document.id !== record.documentId || document.paperId !== record.paperId)
+        throw fail('Evidence document must belong to the same paper', 422);
+      if (
+        !Number.isInteger(record.pageIndex) ||
+        record.pageIndex < 1 ||
+        !Number.isInteger(document.pageCount) ||
+        record.pageIndex > document.pageCount ||
+        !Array.isArray(document.pages) ||
+        !document.pages.some((page) => page.pageIndex === record.pageIndex)
+      )
+        throw fail(
+          'Evidence pageIndex must be an existing one-based file page in this document',
+          422,
+        );
+    }
+  }
+  if (!write) return { ...next, dryRun: true };
+  return commitWorkspace(root, next);
+}
+const auxiliaryFolders = ['draft-inbox', 'reading-records', 'ai-tasks'];
+function validateAuxiliary(folder, name, value) {
+  const validName =
+    folder === 'draft-inbox'
+      ? /^[a-f0-9-]{36}\.json$/
+      : folder === 'reading-records'
+        ? /^[a-z0-9]+(?:-[a-z0-9]+)*\.json$/
+        : /^(?:[a-f0-9-]{36}(?:\.context)?|[a-f0-9-]{36})\.json$/;
+  const validValue =
+    value &&
+    typeof value === 'object' &&
+    !Array.isArray(value) &&
+    (folder === 'draft-inbox'
+      ? value.id === name.slice(0, -5) &&
+        collections.includes(value.collection) &&
+        value.record &&
+        value.record.visibility === 'private' &&
+        ['pending', 'applied', 'cancelled'].includes(value.status) &&
+        /^[a-f0-9]{64}$/.test(value.baseRevision)
+      : folder === 'reading-records'
+        ? value.paperId === name.slice(0, -5) && Array.isArray(value.entries)
+        : name.endsWith('.context.json')
+          ? value.taskId === name.slice(0, -13)
+          : value.id === name.slice(0, -5) &&
+            ['section', 'experiments', 'compare'].includes(value.type) &&
+            ['queued', 'running', 'review', 'failed', 'applied', 'cancelled'].includes(
+              value.status,
+            ));
+  if (!validName.test(name) || !validValue) throw fail(`Invalid backup ${folder}/${name}`, 422);
+}
+async function auxiliarySnapshot(dir) {
+  const files = [];
+  for (const folder of auxiliaryFolders) {
+    let entries;
+    try {
+      entries = await readdir(path.join(dir, folder), { withFileTypes: true });
+    } catch (error) {
+      if (error.code === 'ENOENT') continue;
+      throw error;
+    }
+    for (const entry of entries) {
+      if (!entry.isFile() || !entry.name.endsWith('.json')) continue;
+      const raw = await readFile(path.join(dir, folder, entry.name));
+      const value = JSON.parse(raw.toString());
+      validateAuxiliary(folder, entry.name, value);
+      files.push({ folder, name: entry.name, value });
+    }
+  }
+  return files;
+}
+async function verifiedAuxiliary(source, manifest) {
+  // Old backups have no auxiliary snapshot; leave current reading records and drafts intact.
+  if (manifest.formatVersion === undefined) return [];
+  if (manifest.formatVersion !== 2 || !Array.isArray(manifest.auxiliaryFiles))
+    throw fail('Invalid backup manifest', 422);
+  const files = [],
+    seen = new Set();
+  for (const entry of manifest.auxiliaryFiles) {
     if (
-      record.visibility === 'public' &&
-      JSON.stringify(previous) !== JSON.stringify(record) &&
-      publishConsent !== true
+      !auxiliaryFolders.includes(entry.folder) ||
+      typeof entry.name !== 'string' ||
+      path.basename(entry.name) !== entry.name ||
+      !/^[a-f0-9]{64}$/.test(entry.sha256 || '')
     )
-      throw fail('Explicit publishConsent is required to publish or change a public record', 403);
-    if (collection === 'papers') {
-      for (const p of store.dataset.papers) {
-        if (p.id === record.id) continue;
-        if (
-          (record.doi && p.doi && normalizeDOI(record.doi) === normalizeDOI(p.doi)) ||
-          (record.arxiv && p.arxiv && normalizeArxiv(record.arxiv) === normalizeArxiv(p.arxiv)) ||
-          normalizeTitle(record.title) === normalizeTitle(p.title)
-        )
-          throw fail(`Duplicate paper already exists: ${p.id}. Edit the existing record.`, 409, {
-            existingId: p.id,
-          });
-      }
-    }
-    const next = structuredClone(store);
-    const index = next.dataset[collection].findIndex((x) => x.id === record.id);
-    if (index >= 0) next.dataset[collection][index] = record;
-    else next.dataset[collection].push(record);
-    const errors = [
-      ...validateData(next.dataset),
-      ...validateDatabase(next.database || defaultDatabase(), next.dataset),
-    ];
-    if (errors.length) throw fail(errors.join('; '), 422, errors);
-    if (collection === 'evidence') {
-      if (record.pageIndex !== undefined && record.documentId === undefined)
-        throw fail('Evidence pageIndex requires an attached documentId', 422);
-      if (record.documentId !== undefined) {
-        if (!store.documentIds.includes(record.documentId))
-          throw fail('Evidence documentId is not attached to this workspace', 422);
-        let document;
-        try {
-          document = JSON.parse(
-            await readFile(
-              path.join(await safePrivate(root), 'documents', record.documentId + '.json'),
-              'utf8',
-            ),
-          );
-        } catch {
-          throw fail('Evidence document metadata is unavailable or invalid', 422);
-        }
-        if (document.id !== record.documentId || document.paperId !== record.paperId)
-          throw fail('Evidence document must belong to the same paper', 422);
-        if (
-          !Number.isInteger(record.pageIndex) ||
-          record.pageIndex < 1 ||
-          !Number.isInteger(document.pageCount) ||
-          record.pageIndex > document.pageCount ||
-          !Array.isArray(document.pages) ||
-          !document.pages.some((page) => page.pageIndex === record.pageIndex)
-        )
-          throw fail(
-            'Evidence pageIndex must be an existing one-based file page in this document',
-            422,
-          );
-      }
-    }
-    if (!write) return { ...next, dryRun: true };
-    return commitWorkspace(root, next);
-  });
+      throw fail('Invalid auxiliary backup manifest', 422);
+    const key = entry.folder + '/' + entry.name;
+    if (seen.has(key)) throw fail('Duplicate auxiliary backup entry', 422);
+    seen.add(key);
+    const raw = await readFile(path.join(source, entry.folder, entry.name));
+    if (createHash('sha256').update(raw).digest('hex') !== entry.sha256)
+      throw fail(`Backup checksum mismatch: ${key}`, 422);
+    const value = JSON.parse(raw.toString());
+    validateAuxiliary(entry.folder, entry.name, value);
+    files.push({ ...entry, value });
+  }
+  return files;
 }
 async function backupUnlocked(root, store) {
   const dir = await safePrivate(root),
@@ -329,7 +408,19 @@ async function backupUnlocked(root, store) {
   } catch (e) {
     if (e.code !== 'ENOENT') throw e;
   }
+  const auxiliaryFiles = [];
+  for (const file of await auxiliarySnapshot(dir)) {
+    const target = path.join(dest, file.folder, file.name);
+    await mkdir(path.dirname(target), { recursive: true, mode: 0o700 });
+    await atomic(target, file.value);
+    const sha256 = createHash('sha256')
+      .update(await readFile(target))
+      .digest('hex');
+    auxiliaryFiles.push({ folder: file.folder, name: file.name, sha256 });
+  }
   await atomic(path.join(dest, 'manifest.json'), {
+    formatVersion: 2,
+    auxiliaryFiles,
     backupId,
     createdAt: new Date().toISOString(),
     documentIds,
@@ -368,7 +459,14 @@ export async function restoreWorkspace(root, { backupId, expectedRevision, write
     requireRevision(current, expectedRevision);
     const source = path.join(dir, 'backups', backupId),
       restore = JSON.parse(await readFile(path.join(source, 'workspace.json'), 'utf8'));
-    await readFile(path.join(source, 'manifest.json'), 'utf8');
+    const manifest = JSON.parse(await readFile(path.join(source, 'manifest.json'), 'utf8'));
+    const auxiliaryFiles = await verifiedAuxiliary(source, manifest);
+    let config;
+    try {
+      config = JSON.parse(await readFile(path.join(source, 'site.config.json'), 'utf8'));
+    } catch (error) {
+      if (error.code !== 'ENOENT') throw error;
+    }
     const errors = [
       ...validateData(restore.dataset),
       ...validateDatabase(restore.database || defaultDatabase(), restore.dataset),
@@ -380,7 +478,6 @@ export async function restoreWorkspace(root, { backupId, expectedRevision, write
       restore.documentIds.some((id) => !/^doc-[a-f0-9]{32}$/.test(id))
     )
       throw fail('Invalid backup: ' + errors.join('; '), 422);
-    if (!write) return { backupId, dryRun: true, dataset: restore.dataset };
     // Verify all attachments before creating a new current revision. Files are immutable,
     // restored IDs select the exact attachment snapshot while newer blobs remain recoverable.
     for (const id of restore.documentIds || []) {
@@ -388,6 +485,7 @@ export async function restoreWorkspace(root, { backupId, expectedRevision, write
       for (const suffix of ['.json', '.pdf'])
         await readFile(path.join(source, 'documents', id + suffix));
     }
+    if (!write) return { backupId, dryRun: true, dataset: restore.dataset };
     const safetyBackup = await backupUnlocked(root, current);
     if (restore.documentIds?.length)
       await mkdir(path.join(dir, 'documents'), { recursive: true, mode: 0o700 });
@@ -397,11 +495,13 @@ export async function restoreWorkspace(root, { backupId, expectedRevision, write
           path.join(source, 'documents', id + suffix),
           path.join(dir, 'documents', id + suffix),
         );
-    try {
-      const config = JSON.parse(await readFile(path.join(source, 'site.config.json'), 'utf8'));
-      await atomic(path.join(root, 'site.config.json'), config);
-    } catch (e) {
-      if (e.code !== 'ENOENT') throw e;
+    if (config !== undefined) await atomic(path.join(root, 'site.config.json'), config);
+    // Merge snapshots only after full validation and a safety backup. Newer unlisted
+    // files remain recoverable in place rather than being destructively removed.
+    for (const file of auxiliaryFiles) {
+      const target = path.join(dir, file.folder, file.name);
+      await mkdir(path.dirname(target), { recursive: true, mode: 0o700 });
+      await atomic(target, file.value);
     }
     const next = await commitWorkspace(root, { ...restore, createdAt: current.createdAt });
     return { ...next, safetyBackup };

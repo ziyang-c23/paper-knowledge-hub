@@ -152,9 +152,9 @@ export function validateData(data) {
 }
 const publicKeys = {
   paper:
-    'schemaVersion id title year authors url visibility demo status topics tags aliases abstract note arxiv doi version updated acronym problem method assumptions inputs outputs data tasks evaluation limitations conclusions deployment memory worldModel platform facets claimEvidence',
+    'schemaVersion id title year authors url visibility demo status topics tags aliases abstract note arxiv doi version updated acronym problem method assumptions inputs outputs data tasks evaluation limitations conclusions deployment memory worldModel platform facets claimEvidence visuals',
   topic:
-    'schemaVersion id title visibility demo description dimensions branches questions boundaries analysis gaps evidenceIds compareIds',
+    'schemaVersion id title visibility demo description dimensions branches questions boundaries analysis gaps evidenceIds compareIds comparisonQuestion',
   concept: 'schemaVersion id title kind visibility demo description aliases dimension',
   evidence: 'schemaVersion id visibility demo paperId kind text url locator status',
   relation: 'schemaVersion id visibility demo source target type evidenceIds origin status',
@@ -163,13 +163,90 @@ function pick(object, kind) {
   const keys = publicKeys[kind].split(' ');
   return Object.fromEntries(keys.filter((k) => object[k] !== undefined).map((k) => [k, object[k]]));
 }
-function publicNote(paper) {
-  return String(paper.note || '')
-    .replace(/\]\(\/api\/documents\/[^)]+\)/g, `](${paper.url})`)
-    .replace(/\(#\/document\/[^?]+\?page=(\d+)\)/g, `](${paper.url}#page=$1)`);
+function arxivReference(paper) {
+  const fromUrl = String(paper?.url || '').match(
+    /^https:\/\/arxiv\.org\/(?:abs|pdf|html)\/(.+?)(?:\.pdf)?(?:[?#].*)?$/,
+  )?.[1];
+  const value = fromUrl || String(paper?.arxiv || '').replace(/^https:\/\/arxiv\.org\/abs\//, '');
+  if (!/^(?:\d{4}\.\d{4,5}|[a-z.-]+\/\d{7})(?:v\d+)?$/.test(value)) return null;
+  const version = String(paper?.version || '');
+  return /v\d+$/.test(value) || !/^v\d+$/.test(version) ? value : value + version;
+}
+function externalReference(paper, pdf = false) {
+  const arxiv = arxivReference(paper);
+  if (arxiv) return `https://arxiv.org/${pdf ? 'pdf' : 'abs'}/${arxiv}`;
+  const doi = normalizeDOI(paper?.doi);
+  if (/^10\.\d{4,9}\/[^\s?#]+$/i.test(doi)) return `https://doi.org/${doi}`;
+  // Do not promote arbitrary URLs from a private record into public output.
+  if (paper?.visibility === 'public' && /^https:\/\//.test(paper.url || '')) return paper.url;
+  return null;
+}
+
+function publicText(value, data, publishedIds, owner) {
+  const rewrite = (label, destination) => {
+    const localDocument = destination.match(
+      /^(?:\/api\/documents\/([^/?#]+)\/file|#\/document\/([^/?#]+))(?:\?([^#]*))?(?:#(.*))?$/,
+    );
+    if (localDocument) {
+      const id = localDocument[1] || localDocument[2];
+      const evidenceOwner = data.evidence.find((item) => item.documentId === id)?.paperId;
+      const paper = evidenceOwner ? data.papers.find((item) => item.id === evidenceOwner) : owner;
+      const external = externalReference(paper, true);
+      const page = new URLSearchParams(localDocument[3] || localDocument[4]).get('page');
+      const isPdf =
+        external &&
+        (/^https:\/\/arxiv\.org\/pdf\//.test(external) || /\.pdf(?:[?#]|$)/i.test(external));
+      const target =
+        external && external + (isPdf && /^[1-9]\d*$/.test(page || '') ? `#page=${page}` : '');
+      const name = label
+        .replace(/本地(?:完整)?\s*PDF/gi, isPdf ? '官方 PDF' : '外部原文')
+        .replace(/本地原文/g, '外部原文');
+      return target ? { label: name, target } : { label: `${name}（原文暂不可用）` };
+    }
+    const internal = destination.match(/^#\/(paper|topic|entities|concept)\/([^?#]+)(?:[?#].*)?$/);
+    if (!internal || publishedIds.has(internal[2])) return { label, target: destination };
+    const paper = internal[1] === 'paper' && data.papers.find((item) => item.id === internal[2]);
+    const external = paper && externalReference(paper);
+    return external
+      ? { label: `${label}（外部参考）`, target: external }
+      : { label: `${label}（未公开参考）` };
+  };
+  // Transform Markdown links, keeping code samples intact and never copying private prose.
+  return String(value)
+    .split(/(```[\s\S]*?```|~~~[\s\S]*?~~~|`[^`\n]+`)/g)
+    .map((part, index) => {
+      if (index % 2) return part;
+      const references = new Map();
+      part = part.replace(
+        /^ {0,3}\[([^\]\n]+)\]:\s*<?((?:#\/(?:paper|topic|entities|concept|document)\/|\/api\/documents\/)[^\s>]+)>?(?:\s+"[^"\n]*")?\s*$/gm,
+        (_match, id, destination) => {
+          references.set(id.trim().toLowerCase(), destination);
+          return '';
+        },
+      );
+      part = part.replace(/(?<!!)\[([^\]\n]+)\](?:\[([^\]\n]*)\])?(?!\()/g, (match, label, id) => {
+        const destination = references.get((id || label).trim().toLowerCase());
+        return destination ? `[${label}](${destination})` : match;
+      });
+      return part.replace(
+        /(?<!!)\[([^\]\n]+)\]\(([^\s)]+)(?:\s+"[^"\n]*")?\)/g,
+        (_match, label, destination) => {
+          const next = rewrite(label, destination);
+          return next.target ? `[${next.label}](${next.target})` : next.label;
+        },
+      );
+    })
+    .join('');
 }
 export function publicProjection(data) {
   const out = emptyData();
+  const publishedIds = new Set(
+    [...data.papers, ...data.topics, ...data.concepts]
+      .filter(
+        (item) => item.visibility === 'public' && (!item.lifecycle || item.lifecycle === 'active'),
+      )
+      .map((item) => item.id),
+  );
   for (const [collection, kind] of [
     ['papers', 'paper'],
     ['topics', 'topic'],
@@ -180,7 +257,7 @@ export function publicProjection(data) {
       .map((x) =>
         pick(
           collection === 'papers'
-            ? { ...normalizePaper(x), note: publicNote(x) }
+            ? normalizePaper(x)
             : collection === 'topics'
               ? {
                   description: '',
@@ -237,6 +314,21 @@ export function publicProjection(data) {
         (x.evidenceIds || []).every((id) => evidence.has(id)),
     )
     .map((x) => pick(x, 'relation'));
+  for (const collection of ['papers', 'topics'])
+    out[collection] = out[collection].map((record) => {
+      const owner =
+        collection === 'papers' ? data.papers.find((paper) => paper.id === record.id) : undefined;
+      return Object.fromEntries(
+        Object.entries(record).map(([key, value]) => [
+          key,
+          typeof value === 'string'
+            ? publicText(value, data, publishedIds, owner)
+            : Array.isArray(value) && value.every((item) => typeof item === 'string')
+              ? value.map((item) => publicText(item, data, publishedIds, owner))
+              : value,
+        ]),
+      );
+    });
   for (const k of collections) out[k].sort((a, b) => a.id.localeCompare(b.id));
   return out;
 }

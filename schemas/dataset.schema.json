@@ -222,6 +222,229 @@
             "$ref": "#/definitions/ids"
           }
         },
+        "visuals": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "guide": {
+              "type": "string",
+              "maxLength": 10000
+            },
+            "resources": {
+              "type": "array",
+              "maxItems": 100,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "label": {
+                    "type": "string",
+                    "maxLength": 10000
+                  },
+                  "url": {
+                    "$ref": "#/definitions/url"
+                  },
+                  "kind": {
+                    "enum": ["abstract", "pdf", "project", "code", "model"]
+                  }
+                },
+                "required": ["label", "url", "kind"]
+              }
+            },
+            "method": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "title": {
+                  "type": "string",
+                  "maxLength": 10000
+                },
+                "steps": {
+                  "type": "array",
+                  "maxItems": 100,
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+                      },
+                      "label": {
+                        "type": "string",
+                        "maxLength": 10000
+                      },
+                      "description": {
+                        "type": "string",
+                        "maxLength": 10000
+                      },
+                      "section": {
+                        "type": "string",
+                        "maxLength": 10000
+                      },
+                      "source": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "properties": {
+                          "url": {
+                            "$ref": "#/definitions/url"
+                          },
+                          "locator": {
+                            "type": "string",
+                            "maxLength": 10000
+                          }
+                        },
+                        "required": ["url", "locator"]
+                      },
+                      "updates": {
+                        "type": "array",
+                        "maxItems": 100,
+                        "items": {
+                          "enum": ["pretrain", "finetune", "inference"]
+                        }
+                      }
+                    },
+                    "required": ["id", "label", "description"]
+                  }
+                },
+                "modes": {
+                  "type": "array",
+                  "maxItems": 100,
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "id": {
+                        "enum": ["pretrain", "finetune", "inference"]
+                      },
+                      "label": {
+                        "type": "string",
+                        "maxLength": 10000
+                      },
+                      "description": {
+                        "type": "string",
+                        "maxLength": 10000
+                      }
+                    },
+                    "required": ["id", "label", "description"]
+                  }
+                },
+                "timeline": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "prediction": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 64
+                    },
+                    "execution": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 64
+                    },
+                    "description": {
+                      "type": "string",
+                      "maxLength": 10000
+                    }
+                  },
+                  "required": ["prediction", "execution", "description"]
+                }
+              },
+              "required": ["title", "steps"]
+            },
+            "experiments": {
+              "type": "array",
+              "maxItems": 100,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+                  },
+                  "label": {
+                    "type": "string",
+                    "maxLength": 10000
+                  },
+                  "version": {
+                    "type": "string",
+                    "maxLength": 10000
+                  },
+                  "task": {
+                    "type": "string",
+                    "maxLength": 10000
+                  },
+                  "data": {
+                    "type": "string",
+                    "maxLength": 10000
+                  },
+                  "adaptation": {
+                    "type": "string",
+                    "maxLength": 10000
+                  },
+                  "metric": {
+                    "type": "string",
+                    "maxLength": 10000
+                  },
+                  "unit": {
+                    "type": "string",
+                    "maxLength": 10000
+                  },
+                  "trials": {
+                    "type": "string",
+                    "maxLength": 10000
+                  },
+                  "source": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "url": {
+                        "$ref": "#/definitions/url"
+                      },
+                      "locator": {
+                        "type": "string",
+                        "maxLength": 10000
+                      }
+                    },
+                    "required": ["url", "locator"]
+                  },
+                  "rows": {
+                    "type": "array",
+                    "maxItems": 100,
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "label": {
+                          "type": "string",
+                          "maxLength": 10000
+                        },
+                        "value": {
+                          "type": ["number", "null"]
+                        },
+                        "condition": {
+                          "type": "string",
+                          "maxLength": 10000
+                        },
+                        "method": {
+                          "type": "string"
+                        },
+                        "task": {
+                          "type": "string"
+                        }
+                      },
+                      "required": ["label", "value"]
+                    }
+                  }
+                },
+                "required": ["id", "label", "task", "metric", "unit", "trials", "source", "rows"]
+              }
+            }
+          },
+          "required": []
+        },
         "customProperties": {
           "type": "object",
           "maxProperties": 64,
@@ -304,6 +527,9 @@
         },
         "compareIds": {
           "$ref": "#/definitions/ids"
+        },
+        "comparisonQuestion": {
+          "enum": ["all", "action", "adaptation", "history", "deployment"]
         }
       }
     },

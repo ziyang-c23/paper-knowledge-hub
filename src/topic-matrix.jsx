@@ -95,7 +95,15 @@ function TopicMatrixView({ topic, dataset, dimensions, local }) {
                 清空选择
               </button>
               {selectedIds.length ? (
-                <a className="button primary" href={'#/compare?ids=' + selectedIds.join(',')}>
+                <a
+                  className="button primary"
+                  href={
+                    '#/compare?ids=' +
+                    selectedIds.join(',') +
+                    '&question=' +
+                    (topic.comparisonQuestion || 'action')
+                  }
+                >
                   比较所选论文
                 </a>
               ) : (

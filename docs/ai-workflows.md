@@ -26,7 +26,7 @@
 
 ## 笔记与网页分工
 
-[src/lib/note-template.mjs](../src/lib/note-template.mjs) 是浏览器和 AI 上下文共用的笔记契约。新笔记用“背景与研究脉络、方法与机制、实验与结果分析、讨论与启发、资源与复核”五章深入解释论文。书目字段负责身份，研究速览字段负责简洁概括，`topics/facets` 负责分类；正文不再复制这些卡片与列表。可下载的 [Markdown](../templates/paper-note.md) 和 [JSON](../templates/paper-recommended.json) 模板与此契约同步。
+[src/lib/note-template.mjs](../src/lib/note-template.mjs) 是浏览器和 AI 上下文共用的笔记契约。新笔记用“论文概览、研究背景与问题定义、相关工作、方法、实验设计、实验结果与分析、局限性与讨论、附录”八章深入解释论文。书目字段负责身份，研究速览字段负责简洁概括，`topics/facets` 负责分类；正文不再复制这些卡片与列表。可下载的 [Markdown](../templates/paper-note.md) 和 [JSON](../templates/paper-recommended.json) 模板与此契约同步。
 
 已有八章或其他 Markdown 不需要批量转换，仍可渲染、编辑与导出。局部补充保留原结构；空标题、模板提示和来源数量不代表完成精读。
 
@@ -62,3 +62,25 @@ npm run ai:draft -- private/ai-drafts/paper.json --collection papers --revision 
 研究关系必须引用真实 evidence；approved 需要 verified evidence 以及 source/curator origin。模型候选保持 pending。私人内容只进入本地草稿和导出，不发送网页模型；网页模型网关依然只消费经同意的公开证据。
 
 `private/draft-inbox/` 是待审产物，不属于主库自动历史和完整库备份。需要保留待审草稿时从草稿箱导出 JSON；已应用内容进入主库正常备份。
+
+## 按任务整理，而不是整篇覆盖
+
+本地版的 AI 任务有三种明确入口：补充一个笔记章节、提取一篇论文的结构化实验、比较多篇论文并写回指定专题。任务先生成本地上下文文件，导出后可交给用户选择的模型或本地 Agent；服务本身不自动发送材料或调用云模型。结果导入后成为待审草稿，由人选择字段应用。
+
+- **补章节**：选择八章中的一个章节，结果 JSON 使用 `{ "sectionText": "章节正文" }`。正文可使用三级标题；后台只替换所选二级章节，保留其他章节与私人字段。
+- **提取实验**：结果 JSON 使用 `{ "experiments": [...] }`，记录格式见上下文的 `resultTemplate`；只更新 `visuals.experiments`。数值、单位、条件和来源进入同一记录，未知数值使用 `null`。
+- **比较论文**：选择 2–20 篇论文和已有专题，结果 JSON 使用 `{ "analysis": "...", "questions": [], "gaps": [] }`；更新专题分析及比较论文集合。
+
+任务状态为待运行、上下文已准备、待审、失败、已应用或已取消。“上下文已准备”表示等待用户导入模型结果，不代表模型正在运行。导入过期结果会失败；刷新当前数据库后重试将重新生成上下文，不会把旧结果自动覆盖到新版本。取消待审任务同时取消其关联草稿。任务、上下文、草稿和阅读记录都纳入本地备份。
+
+命令行也使用相同流程（所有修改需要当前 workspace revision）：
+
+```sh
+node scripts/ai-task.mjs create --revision REVISION --type section --papers PAPER_ID --section mechanism
+node scripts/ai-task.mjs prepare --revision REVISION --id TASK_ID
+node scripts/ai-task.mjs context --id TASK_ID
+node scripts/ai-task.mjs import --revision REVISION --id TASK_ID --result RESULT.json
+node scripts/ai-task.mjs list
+```
+
+`prepare` 将真实上下文写入 `private/ai-tasks/TASK_ID.context.json`；`import` 只创建草稿。应用可在草稿箱完成，或显式执行 `apply --revision REVISION --id TASK_ID`。公开示例的 AI 结果先转为本地私有记录，不自动发布。

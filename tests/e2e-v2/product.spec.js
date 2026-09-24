@@ -121,9 +121,9 @@ test('paper modes separate summary, deep notes and sources and survive navigatio
   await expect(page.locator('#paper-note')).toBeVisible();
   await nav.getByRole('link', { name: '研究速览', exact: true }).click();
   await page.locator('#research-summary .claim-link').first().click();
+  await expect(page.getByRole('dialog', { name: '来源详情' })).toBeVisible();
+  await page.getByRole('button', { name: '关闭来源' }).click();
+  await expect(page.locator('#research-summary')).toBeVisible();
+  await page.goto('/#/paper/octo?evidence=ev-octo-method');
   await expect(page.locator('#paper-evidence')).toBeVisible();
-  await expect(nav.getByRole('link', { name: '来源与附件' })).toHaveAttribute(
-    'aria-current',
-    'page',
-  );
 });

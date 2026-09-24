@@ -68,7 +68,8 @@ import './styles.css';
 import { AppShell, WorkbenchHome } from './ui.jsx';
 import { DraftInbox } from './drafts.jsx';
 import './ui.css';
-import { ParallelReader, ReaderNotes, NoteOutline } from './reading.jsx';
+import { ParallelReader, ReaderNotes, NoteOutline, PaperNote } from './reading.jsx';
+import { ResearchVisuals } from './research-visuals.jsx';
 const statusLabels = { unread: '待阅读', reading: '阅读中', reviewed: '已整理' };
 const kinds = { paper: '论文', topic: '主题', ...entityKinds };
 const originLabels = {
@@ -145,7 +146,7 @@ function NoteImage({ src, alt }) {
     </span>
   );
 }
-function Md({ children }) {
+function Md({ children, rehypePlugins = [] }) {
   return (
     <div className="markdown">
       <Markdown
@@ -158,7 +159,7 @@ function Md({ children }) {
           ),
         }}
         remarkPlugins={[remarkGfm, remarkMath]}
-        rehypePlugins={[rehypeKatex]}
+        rehypePlugins={[rehypeKatex, ...rehypePlugins]}
       >
         {children || '尚未整理正文。'}
       </Markdown>
@@ -478,6 +479,9 @@ function Filters({ route, queryLabel = '搜索标题、简称、作者、标签�
   );
 }
 function LibraryPage({ route, selected, toggle, workspace }) {
+  const view = ['list', 'table', 'gallery'].includes(route.params.get('view'))
+    ? route.params.get('view')
+    : 'list';
   const [focus, setFocus] = useState(route.params.get('focus') || '');
   const facets = Object.fromEntries(
     [...route.params].filter(([k]) => k.startsWith('facet.')).map(([k, v]) => [k.slice(6), v]),
@@ -507,7 +511,7 @@ function LibraryPage({ route, selected, toggle, workspace }) {
         title="阅读桌"
         actions={
           <a className="button primary" href={workspace ? '#/edit/new' : '#/manage'}>
-            <Plus size={16} /> 新增论文
+            <Plus size={16} /> {workspace ? '新增论文' : '建立本地工作台'}
           </a>
         }
       >
@@ -571,7 +575,10 @@ function LibraryPage({ route, selected, toggle, workspace }) {
           ].map(([query, label]) => {
             const href = query ? '/library?' + query : '/library';
             const activeQuery = query
-              ? query.split('&').every(([k, v]) => route.params.get(k) === v)
+              ? query.split('&').every((pair) => {
+                  const [k, v] = pair.split('=');
+                  return route.params.get(k) === v;
+                })
               : !route.params.get('status') && !route.params.get('missing');
             return (
               <a className={activeQuery ? 'active' : ''} href={'#' + href} key={query || 'all'}>
@@ -581,6 +588,28 @@ function LibraryPage({ route, selected, toggle, workspace }) {
           })}
         </div>
         <div className="results-toolbar">
+          <nav className="row" aria-label="文献视图">
+            {[
+              ['list', '列表'],
+              ['table', '表格'],
+              ['gallery', '画廊'],
+            ].map(([id, label]) => (
+              <a
+                className="button small"
+                aria-current={view === id ? 'page' : undefined}
+                key={id}
+                href={link('/library', { ...Object.fromEntries(route.params), view: id })}
+              >
+                {label}
+              </a>
+            ))}
+            {workspace && (
+              <a className="button small" href="#/database">
+                批量整理
+              </a>
+            )}
+          </nav>
+
           <span>
             <b>{papers.length}</b> 篇论文 {route.params.get('missing') && <Badge>待补字段</Badge>}
           </span>
@@ -600,7 +629,65 @@ function LibraryPage({ route, selected, toggle, workspace }) {
             </select>
           </label>
         </div>
-        {papers.length ? (
+        {papers.length && view !== 'list' ? (
+          view === 'table' ? (
+            <div className="result-table" tabIndex={0}>
+              <table>
+                <thead>
+                  <tr>
+                    <th>比较</th>
+                    <th>论文</th>
+                    <th>年份</th>
+                    <th>问题</th>
+                    <th>阅读状态</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {slice.map((p) => (
+                    <tr key={p.id}>
+                      <td>
+                        <input
+                          type="checkbox"
+                          aria-label={'选择比较 ' + (p.acronym || p.title)}
+                          checked={selected.includes(p.id)}
+                          onChange={() => toggle(p.id)}
+                        />
+                      </td>
+                      <th>
+                        <a href={link('/paper/' + p.id)}>{p.title}</a>
+                      </th>
+                      <td>{p.year}</td>
+                      <td>{p.problem}</td>
+                      <td>{statusLabels[p.status]}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="library-gallery">
+              {slice.map((p) => (
+                <article key={p.id}>
+                  <label>
+                    <input
+                      type="checkbox"
+                      aria-label={'选择比较 ' + (p.acronym || p.title)}
+                      checked={selected.includes(p.id)}
+                      onChange={() => toggle(p.id)}
+                    />
+                    比较
+                  </label>
+                  <small>{p.year}</small>
+                  <h2>
+                    <a href={link('/paper/' + p.id)}>{p.title}</a>
+                  </h2>
+                  <p>{p.problem || p.abstract}</p>
+                  <span>{statusLabels[p.status]}</span>
+                </article>
+              ))}
+            </div>
+          )
+        ) : papers.length ? (
           <div className="reading-desk">
             <div className="reading-desk-list">
               <div className="reading-desk-list-head">
@@ -684,29 +771,6 @@ function LibraryPage({ route, selected, toggle, workspace }) {
                       复制引用
                     </button>
                   </div>
-                  <div className="desk-detail-stats">
-                    <span>
-                      <b>{active.note ? active.note.length.toLocaleString() : 0}</b> 笔记字符
-                    </span>
-                    <span>
-                      <b>
-                        {(active.claimEvidence &&
-                          Object.values(active.claimEvidence).flat().length) ||
-                          0}
-                      </b>{' '}
-                      条主张证据
-                    </span>
-                    <span>
-                      <b>
-                        {
-                          data.relations.filter(
-                            (r) => r.source === active.id || r.target === active.id,
-                          ).length
-                        }
-                      </b>{' '}
-                      条关联
-                    </span>
-                  </div>
                 </>
               ) : (
                 <Empty title="选择一篇文献" />
@@ -744,6 +808,24 @@ function LibraryPage({ route, selected, toggle, workspace }) {
   );
 }
 function PaperPage({ route, selected, toggle, notify, workspace, refresh }) {
+  const [sourcePreview, setSourcePreview] = useState(null);
+  const sourceDialog = useRef(null);
+  useEffect(() => {
+    const intercept = (event) => {
+      const anchor = event.target.closest('a');
+      if (!anchor || event.ctrlKey || event.metaKey || event.shiftKey) return;
+      const href = anchor.getAttribute('href') || '';
+      if (!href.startsWith('#' + route.path + '?')) return;
+      const id = new URLSearchParams(href.split('?')[1]).get('evidence');
+      const item = data.evidence.find((item) => item.id === id);
+      if (!item) return;
+      event.preventDefault();
+      setSourcePreview(item);
+      sourceDialog.current?.showModal();
+    };
+    document.addEventListener('click', intercept);
+    return () => document.removeEventListener('click', intercept);
+  }, [route.path]);
   const requestedMode = route.params.get('mode');
   const readingMode = route.params.get('evidence')
     ? 'sources'
@@ -772,6 +854,12 @@ function PaperPage({ route, selected, toggle, notify, workspace, refresh }) {
   const cite = `${p.authors.join(', ')} (${p.year}). ${p.title}. ${p.url}`;
   return (
     <>
+      <dialog className="source-drawer" ref={sourceDialog} aria-label="来源详情">
+        <button className="button" onClick={() => sourceDialog.current?.close()}>
+          关闭来源
+        </button>
+        {sourcePreview && <Evidence e={sourcePreview} />}
+      </dialog>
       <div className="backline">
         <a
           href={
@@ -793,62 +881,95 @@ function PaperPage({ route, selected, toggle, notify, workspace, refresh }) {
           </button>
         }
       />
-      <p className="detail-authors">{p.authors.join(', ')}</p>
-      <div className="detail-toolbar">
-        {workspace && (
-          <>
-            <a className="button primary" href={link('/edit/' + p.id)}>
-              编辑论文
-            </a>
-            <Badge>
-              {p.lifecycle === 'draft' ? '草稿' : p.lifecycle === 'archived' ? '已归档' : '已入库'}{' '}
-              / {p.visibility === 'public' ? '允许公开' : '仅本地'}
-            </Badge>
-          </>
+      <p className="detail-authors">
+        {p.authors.slice(0, 3).join(', ')}
+        {p.authors.length > 3 ? ' 等' : ''}
+      </p>
+      <details className="paper-bibliography">
+        <summary>完整书目信息</summary>
+        <p>{p.authors.join(', ')}</p>
+        <p>
+          {p.year} · {p.version || '版本未记录'}
+        </p>
+      </details>
+      <p className="paper-guide">{p.problem || p.visuals?.guide}</p>
+      <details className="paper-tools" open={window.innerWidth > 900}>
+        <summary>资源与操作 · 原文、代码、引用、编辑</summary>
+        {p.visuals?.resources?.length > 0 && (
+          <div className="row wrap">
+            {p.visuals.resources.map((resource) => (
+              <a
+                className="button small"
+                key={resource.url}
+                href={resource.url}
+                target="_blank"
+                rel="noreferrer"
+              >
+                {resource.label} ↗
+              </a>
+            ))}
+          </div>
         )}
-        <Badge tone="green">{statusLabels[p.status]}</Badge>
-        <Topics ids={p.topics} />
-        <a className="button small" href={p.url} target="_blank" rel="noreferrer">
-          论文原文 <ExternalLink size={14} />
-        </a>
-        <button
-          className="button small"
-          onClick={async () => {
-            try {
-              await navigator.clipboard.writeText(cite);
-              notify('引用信息已复制');
-            } catch {
-              download(p.id + '-citation.txt', cite, 'text/plain');
-              notify('无法访问剪贴板，已导出引用文件');
+        <div className="detail-toolbar">
+          {workspace && (
+            <>
+              <a className="button primary" href={link('/edit/' + p.id)}>
+                编辑论文
+              </a>
+              <Badge>
+                {p.lifecycle === 'draft'
+                  ? '草稿'
+                  : p.lifecycle === 'archived'
+                    ? '已归档'
+                    : '已入库'}{' '}
+                / {p.visibility === 'public' ? '允许公开' : '仅本地'}
+              </Badge>
+            </>
+          )}
+          <Badge tone="green">{statusLabels[p.status]}</Badge>
+          <Topics ids={p.topics} />
+          <a className="button small" href={p.url} target="_blank" rel="noreferrer">
+            论文原文 <ExternalLink size={14} />
+          </a>
+          <button
+            className="button small"
+            onClick={async () => {
+              try {
+                await navigator.clipboard.writeText(cite);
+                notify('引用信息已复制');
+              } catch {
+                download(p.id + '-citation.txt', cite, 'text/plain');
+                notify('无法访问剪贴板，已导出引用文件');
+              }
+            }}
+          >
+            <Clipboard size={14} />
+            复制引用
+          </button>
+          <button
+            className="button small"
+            onClick={() =>
+              download(
+                p.id + '.md',
+                `# ${p.title}\n\n${cite}\n\n## 研究速览\n\n${[
+                  ['研究问题', p.problem],
+                  ['方法概括', p.method],
+                  ['关键结论', p.conclusions],
+                  ['局限与边界', p.limitations],
+                ]
+                  .filter(([, value]) => value)
+                  .map(([label, value]) => `**${label}**：${value}`)
+                  .join(
+                    '\n\n',
+                  )}\n\n${p.note || ''}${workspace && p.personalAnalysis ? '\n\n## 个人分析（本地导出，未经验证）\n\n' + p.personalAnalysis : ''}\n\n## 证据\n\n${evidence.map((e) => `- [${e.id}] ${evidenceKinds[e.kind]} / ${e.status === 'verified' ? '已核验' : '待核验'}：${e.text}\n  来源：${e.url || '未提供来源（不可视为原文支持）'}；${e.locator || '定位未提供'}`).join('\n\n')}`,
+              )
             }
-          }}
-        >
-          <Clipboard size={14} />
-          复制引用
-        </button>
-        <button
-          className="button small"
-          onClick={() =>
-            download(
-              p.id + '.md',
-              `# ${p.title}\n\n${cite}\n\n## 研究速览\n\n${[
-                ['研究问题', p.problem],
-                ['方法概括', p.method],
-                ['关键结论', p.conclusions],
-                ['局限与边界', p.limitations],
-              ]
-                .filter(([, value]) => value)
-                .map(([label, value]) => `**${label}**：${value}`)
-                .join(
-                  '\n\n',
-                )}\n\n${p.note || ''}${workspace && p.personalAnalysis ? '\n\n## 个人分析（本地导出，未经验证）\n\n' + p.personalAnalysis : ''}\n\n## 证据\n\n${evidence.map((e) => `- [${e.id}] ${evidenceKinds[e.kind]} / ${e.status === 'verified' ? '已核验' : '待核验'}：${e.text}\n  来源：${e.url || '未提供来源（不可视为原文支持）'}；${e.locator || '定位未提供'}`).join('\n\n')}`,
-            )
-          }
-        >
-          <Download size={14} />
-          导出笔记
-        </button>
-      </div>
+          >
+            <Download size={14} />
+            导出笔记
+          </button>
+        </div>
+      </details>
       <nav className="reading-toolbar" aria-label="阅读模式">
         {[
           ['overview', '研究速览'],
@@ -875,9 +996,10 @@ function PaperPage({ route, selected, toggle, notify, workspace, refresh }) {
             Md={Md}
             local={Boolean(workspace)}
           />
-          <ReaderNotes paper={p} local={Boolean(workspace)} />
+          <ReaderNotes paper={p} local={Boolean(workspace)} csrfToken={workspace?.csrfToken} />
         </>
       )}
+      {readingMode === 'overview' && <ResearchVisuals paper={p} />}
       <div className="detail-grid">
         <div>
           <section
@@ -991,7 +1113,7 @@ function PaperPage({ route, selected, toggle, notify, workspace, refresh }) {
             </div>
             {readingMode === 'note' &&
               (p.note?.trim() ? (
-                <Md>{p.note}</Md>
+                <PaperNote paper={p} Md={Md} />
               ) : (
                 <Empty title="尚未整理阅读笔记">
                   {workspace ? (
@@ -1191,6 +1313,8 @@ function positionsForGraph(count) {
 }
 
 function GraphPage({ route }) {
+  const graphPanel = useRef(null);
+  const [focusHistory, setFocusHistory] = useState([]);
   const p = route.params,
     [edge, setEdge] = useState(null),
     [focus, setFocus] = useState(null),
@@ -1200,12 +1324,14 @@ function GraphPage({ route }) {
     dragRef = useRef(null);
   const start = p.get('scope') === 'all' ? '*' : p.get('node') || data.papers[0]?.id || '',
     hops = Number(p.get('hops') || 1);
-  const update = (k, v) =>
+  const update = (k, v) => {
+    if (k === 'node' && v !== start) setFocusHistory((history) => [...history, start]);
     go('/graph', {
       ...Object.fromEntries(p),
       [k]: v,
       ...(k === 'node' ? { scope: v === '*' ? 'all' : '', node: v === '*' ? '' : v } : {}),
     });
+  };
   const graph = graphNeighborhood(
     data,
     start === '*' ? allEntities.map((n) => n.id) : start,
@@ -1223,7 +1349,7 @@ function GraphPage({ route }) {
     setHoverNode(null);
     setZoom(1);
     setPan({ x: 0, y: 0 });
-  }, [route.params.toString()]);
+  }, [start]);
   const width = 860,
     height = Math.max(420, positionsForGraph(graph.nodes.length)),
     anchor = start === '*' ? null : start,
@@ -1247,14 +1373,20 @@ function GraphPage({ route }) {
   };
   const dragStart = (event) => {
     if (event.target.closest('[role="button"]')) return;
-    dragRef.current = { x: event.clientX, y: event.clientY, pan };
+    const point = new DOMPoint(event.clientX, event.clientY).matrixTransform(
+      event.currentTarget.getScreenCTM().inverse(),
+    );
+    dragRef.current = { x: point.x, y: point.y, pan };
     event.currentTarget.setPointerCapture?.(event.pointerId);
   };
   const dragMove = (event) => {
     if (!dragRef.current) return;
+    const point = new DOMPoint(event.clientX, event.clientY).matrixTransform(
+      event.currentTarget.getScreenCTM().inverse(),
+    );
     setPan({
-      x: dragRef.current.pan.x + (event.clientX - dragRef.current.x) / zoom,
-      y: dragRef.current.pan.y + (event.clientY - dragRef.current.y) / zoom,
+      x: dragRef.current.pan.x + point.x - dragRef.current.x,
+      y: dragRef.current.pan.y + point.y - dragRef.current.y,
     });
   };
   const dragEnd = () => {
@@ -1335,7 +1467,7 @@ function GraphPage({ route }) {
         </label>
       </section>
       <div className="graph-layout">
-        <section className="panel graph-panel">
+        <section className="panel graph-panel" ref={graphPanel}>
           <div className="section-heading">
             <h2>{pending ? '待审核关系' : '已审核邻域'}</h2>
             <span className="muted">
@@ -1354,6 +1486,27 @@ function GraphPage({ route }) {
               <div className="graph-stage-toolbar" aria-label="图谱视图控制">
                 <span className="muted">拖动画布 · 滚轮缩放 · 点击节点或连线查看上下文</span>
                 <div className="graph-stage-actions">
+                  <button
+                    className="button small"
+                    disabled={!focusHistory.length}
+                    onClick={() => {
+                      const previous = focusHistory.at(-1);
+                      setFocusHistory(focusHistory.slice(0, -1));
+                      go('/graph', { ...Object.fromEntries(p), node: previous, scope: '' });
+                    }}
+                  >
+                    返回上一焦点
+                  </button>
+                  <button
+                    className="button small"
+                    onClick={() => {
+                      if (document.fullscreenElement) document.exitFullscreen();
+                      else graphPanel.current?.requestFullscreen?.();
+                    }}
+                  >
+                    全屏 / 退出
+                  </button>
+
                   <button
                     className="icon-button"
                     aria-label="缩小图谱"
@@ -1455,11 +1608,6 @@ function GraphPage({ route }) {
                             style={{ opacity: connected || !activeNode ? 1 : 0.18 }}
                           />
                           <path d={edgePath} stroke="transparent" strokeWidth="18" />
-                          {(edge === r.id || hoverNode === r.source) && (
-                            <circle className="graph-flow-dot" r="4">
-                              <animateMotion dur="2.8s" repeatCount="indefinite" path={edgePath} />
-                            </circle>
-                          )}
                         </g>
                       );
                     })}
@@ -1571,6 +1719,52 @@ function GraphPage({ route }) {
               <button className="button" onClick={() => update('node', focus)}>
                 以此为起点
               </button>
+              <h4>关联论文</h4>
+              {data.papers
+                .filter(
+                  (item) =>
+                    item.lifecycle !== 'archived' &&
+                    (item.id === focus ||
+                      Object.values(item.facets || {})
+                        .flat()
+                        .includes(focus) ||
+                      data.relations.some(
+                        (relation) =>
+                          relation.status === 'approved' &&
+                          [relation.source, relation.target].includes(focus) &&
+                          [relation.source, relation.target].includes(item.id),
+                      )),
+                )
+                .map((item) => (
+                  <p key={item.id}>
+                    <a href={link('/paper/' + item.id)}>{item.acronym || item.title}</a>
+                  </p>
+                ))}
+              <a
+                className="button"
+                href={link('/compare', {
+                  ids: data.papers
+                    .filter(
+                      (item) =>
+                        item.lifecycle !== 'archived' &&
+                        (Object.values(item.facets || {})
+                          .flat()
+                          .includes(focus) ||
+                          data.relations.some(
+                            (relation) =>
+                              relation.status === 'approved' &&
+                              [relation.source, relation.target].includes(focus) &&
+                              [relation.source, relation.target].includes(item.id),
+                          )),
+                    )
+                    .map((item) => item.id)
+                    .slice(0, config.display.maxCompare)
+                    .join(','),
+                  question: 'action',
+                })}
+              >
+                比较关联论文
+              </a>
             </div>
           ) : (
             <div className="padded muted">
@@ -1611,6 +1805,32 @@ function GraphPage({ route }) {
   );
 }
 function ComparePage({ route, selected, toggle, setSelected, workspace, refresh, notify }) {
+  const questions = {
+    all: { label: '完整比较', fields: config.comparisonFields.map((f) => f.key) },
+    action: {
+      label: '动作如何表示与生成？',
+      fields: ['method', 'outputs', 'inputs', 'deployment'],
+    },
+    adaptation: {
+      label: '怎样适配新的机器人设置？',
+      fields: ['data', 'method', 'tasks', 'evaluation', 'limitations'],
+    },
+    history: {
+      label: '利用什么历史与上下文？',
+      fields: ['inputs', 'memory', 'method', 'limitations'],
+    },
+    deployment: {
+      label: '部署需要满足什么条件？',
+      fields: ['deployment', 'platform', 'assumptions', 'limitations'],
+    },
+  };
+  const question = questions[route.params.get('question')]
+    ? route.params.get('question')
+    : 'action';
+  const fields = config.comparisonFields.filter((field) =>
+    questions[question].fields.includes(field.key),
+  );
+  const [hideShared, setHideShared] = useState(false);
   const [saveTopic, setSaveTopic] = useState(''),
     [saving, setSaving] = useState(false),
     [saveError, setSaveError] = useState('');
@@ -1623,7 +1843,7 @@ function ComparePage({ route, selected, toggle, setSelected, workspace, refresh,
         '/api/records',
         {
           collection: 'topics',
-          record: { ...topic, compareIds: ids },
+          record: { ...topic, compareIds: ids, comparisonQuestion: question },
           expectedRevision: workspace.revision,
         },
         workspace.csrfToken,
@@ -1637,20 +1857,20 @@ function ComparePage({ route, selected, toggle, setSelected, workspace, refresh,
     }
   };
 
-  const ids = route.params.has('ids')
-    ? route.params
-        .get('ids')
-        .split(',')
-        .filter((id) => paper(id))
-        .slice(0, config.display.maxCompare)
-    : selected;
+  const requestedIds = [
+    ...new Set(
+      route.params.has('ids') ? route.params.get('ids').split(',').filter(Boolean) : selected,
+    ),
+  ];
+  const missingIds = requestedIds.filter((id) => !paper(id));
+  const ids = requestedIds.filter((id) => paper(id)).slice(0, config.display.maxCompare);
   const papers = ids.map(paper);
   const change = (id) => {
     const next = ids.includes(id)
       ? ids.filter((x) => x !== id)
       : [...ids, id].slice(0, config.display.maxCompare);
     setSelected(next);
-    go('/compare', { ids: next.join(',') });
+    go('/compare', { ids: next.join(','), question });
   };
   return (
     <>
@@ -1664,18 +1884,15 @@ function ComparePage({ route, selected, toggle, setSelected, workspace, refresh,
             onClick={() =>
               download(
                 'paper-comparison.md',
-                comparisonMarkdown(papers, config.comparisonFields) +
+                comparisonMarkdown(papers, fields) +
                   '\n## 依据与支持范围\n\n以下字段是整理者归纳；未绑定证据的字段仍需核查。相同数据集不代表评测可比。\n\n' +
                   papers
                     .map(
                       (p) =>
-                        `### ${p.title}\n\n${Object.entries(p.claimEvidence || {})
-                          .map(([key, ids]) => `${key}: ${ids.join(', ')}`)
-                          .join('\n')}\n\n${data.evidence
+                        `### ${p.title}\n\n${data.evidence
                           .filter((e) => e.paperId === p.id)
                           .map(
-                            (e) =>
-                              `- [${e.id}] ${evidenceKinds[e.kind]} / ${e.status}: ${e.text}\n  ${e.url || '来源未知'}；${e.locator || '定位未知'}${e.documentId ? '；本地文档 ' + e.documentId + ' 文件页序 ' + e.pageIndex : ''}`,
+                            (e) => `- ${e.text}\n  [${e.locator || '原文来源'}](${e.url || p.url})`,
                           )
                           .join('\n\n')}`,
                     )
@@ -1689,6 +1906,37 @@ function ComparePage({ route, selected, toggle, setSelected, workspace, refresh,
       >
         保留任务和评测条件；不同实验协议不生成统一排名。空白信息显示为未知。
       </Heading>
+      <label className="comparison-question">
+        比较问题{' '}
+        <select
+          aria-label="比较问题"
+          value={question}
+          onChange={(event) =>
+            go('/compare', { ids: requestedIds.join(','), question: event.target.value })
+          }
+        >
+          {Object.entries(questions).map(([id, item]) => (
+            <option value={id} key={id}>
+              {item.label}
+            </option>
+          ))}
+        </select>
+      </label>
+      {missingIds.length > 0 && (
+        <p role="alert">
+          此比较组合有 {missingIds.length} 篇论文在当前空间不可用：{missingIds.join('、')}
+          。它们可能未公开或已移除；以下只显示可用条目。
+        </p>
+      )}
+      {papers.length === 1 && <p role="status">目前仅一篇可用，请再选择论文以比较机制与条件。</p>}
+      <label className="row">
+        <input
+          type="checkbox"
+          checked={hideShared}
+          onChange={(event) => setHideShared(event.target.checked)}
+        />
+        收起完全相同的字段
+      </label>
       {workspace && (
         <section className="comparison-save">
           <label>
@@ -1772,21 +2020,30 @@ function ComparePage({ route, selected, toggle, setSelected, workspace, refresh,
               </tr>
             </thead>
             <tbody>
-              {config.comparisonFields.map((f) => (
-                <tr key={f.key}>
-                  <th scope="row">{f.label}</th>
-                  {papers.map((p) => (
-                    <td key={p.id} className={!p[f.key] ? 'unknown' : ''}>
-                      {unknown(p[f.key])}
-                      {(p.claimEvidence?.[f.key] || []).map((id) => (
-                        <div key={id}>
-                          <a href={link('/paper/' + p.id, { evidence: id })}>查看来源</a>
-                        </div>
-                      ))}
-                    </td>
-                  ))}
-                </tr>
-              ))}
+              {fields
+                .filter((f) => !hideShared || new Set(papers.map((p) => p[f.key] || '')).size > 1)
+                .map((f) => (
+                  <tr key={f.key}>
+                    <th scope="row">{f.label}</th>
+                    {papers.map((p) => (
+                      <td key={p.id} className={!p[f.key] ? 'unknown' : ''}>
+                        {p[f.key]?.length > 95 ? (
+                          <details>
+                            <summary>{p[f.key].slice(0, 95)}…</summary>
+                            <p>{p[f.key]}</p>
+                          </details>
+                        ) : (
+                          unknown(p[f.key])
+                        )}
+                        {(p.claimEvidence?.[f.key] || []).slice(0, 1).map((id) => (
+                          <div key={id}>
+                            <a href={link('/paper/' + p.id, { evidence: id })}>查看来源</a>
+                          </div>
+                        ))}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
               <tr>
                 <th scope="row">证据与原文</th>
                 {papers.map((p) => (

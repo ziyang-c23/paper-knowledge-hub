@@ -147,3 +147,12 @@ test('paperId filter restricts corpus, coverage, and PDF results', () => {
   assert.equal(r.coverage.paperCount, 1);
   assert.equal(r.direct[0].paperId, 'one');
 });
+
+test('note results retain their chapter destination without parsing fenced headings', () => {
+  const d = fixture();
+  d.papers[0].note =
+    '## 方法\n\nA uniquecontroltoken mechanism\n\n```\n## Fake\n```\n\nMore uniquecontroltoken\n\n## 实验\n\nOther results';
+  const results = enhancedSearch(d, 'uniquecontroltoken', { scope: 'notes' });
+  assert.ok(results.direct.length);
+  assert.ok(results.direct.every((result) => result.sectionId === 'note-方法'));
+});

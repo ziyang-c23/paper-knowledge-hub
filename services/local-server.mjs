@@ -1,3 +1,5 @@
+import { listAITasks, mutateAITask, getAITaskContext } from './ai-tasks.mjs';
+import { readReadingRecords, saveReadingRecords } from './reading-records.mjs';
 import { listDrafts, saveDraft, applyDraft } from './drafts.mjs';
 import http from 'node:http';
 import path from 'node:path';
@@ -96,6 +98,16 @@ export function createLocalServer({
         )
           throw error('Valid X-Workspace-Token required', 403);
       }
+      if (url.pathname === '/api/ai-tasks' && req.method === 'GET')
+        return json(200, { tasks: await listAITasks(root) });
+      if (url.pathname === '/api/ai-tasks' && req.method === 'POST')
+        return json(200, await mutateAITask(root, await body(req)));
+      if (url.pathname === '/api/ai-tasks/context' && req.method === 'GET')
+        return json(200, await getAITaskContext(root, url.searchParams.get('id')));
+      if (url.pathname === '/api/reading-records' && req.method === 'GET')
+        return json(200, await readReadingRecords(root, url.searchParams.get('paperId')));
+      if (url.pathname === '/api/reading-records' && req.method === 'POST')
+        return json(200, await saveReadingRecords(root, await body(req)));
       if (url.pathname === '/api/drafts' && req.method === 'GET')
         return json(200, { drafts: await listDrafts(root) });
       if (url.pathname === '/api/drafts' && req.method === 'POST')

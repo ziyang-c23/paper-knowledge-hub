@@ -120,7 +120,32 @@ export function enhancedSearch(data, query, options = {}) {
       entities.map((c) => [c.title, ...(c.aliases || [])].join(' / ')).join('\n'),
       3,
     );
-    add(p, 'notes', p.note, 1.5);
+    let sectionId = '',
+      body = [],
+      fence = false;
+    const usedHeadings = new Map();
+    const flushNote = () => {
+      add(p, 'notes', body.join('\n'), 1.5, sectionId ? { sectionId } : {});
+      body = [];
+    };
+    for (const line of (p.note || '').split('\n')) {
+      if (/^\s*(```|~~~)/.test(line)) fence = !fence;
+      const heading = !fence && line.match(/^#{1,3}\s+(.+)$/);
+      if (heading) {
+        flushNote();
+        const slug =
+          heading[1]
+            .normalize('NFKC')
+            .toLowerCase()
+            .replace(/[^\p{L}\p{N}]+/gu, '-')
+            .replace(/^-|-$/g, '') || 'section';
+        const count = (usedHeadings.get(slug) || 0) + 1;
+        usedHeadings.set(slug, count);
+        sectionId = 'note-' + slug + (count > 1 ? '-' + count : '');
+      }
+      body.push(line);
+    }
+    flushNote();
     if (data.scope === 'local') add(p, 'notes', p.personalAnalysis, 1.2, { curatorAnalysis: true });
     for (const e of (data.evidence || []).filter((e) => e.paperId === p.id && inScope(data, e))) {
       add(p, 'evidence', e.text, 3, {

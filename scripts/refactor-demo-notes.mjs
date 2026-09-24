@@ -39,6 +39,7 @@ export function refactorDemoNote(paper, evidence) {
     note = note.replace(/^## 论文概览\n\n/, '## 阅读范围与结论边界\n\n');
     note = note.replace(/^公开演示笔记，依据 /m, '本条阅读范围依据 ');
     note = note.replace(/^这是一份公开演示笔记，依据 /m, '本条阅读范围依据 ');
+    note = note.replace(/^公开演示笔记，/m, '本条阅读范围：');
     note = note.replace(/；未复现实验。/, '；未复现实验。');
   } else {
     note = note.replace(/^公开演示条目。/m, '');
@@ -48,6 +49,7 @@ export function refactorDemoNote(paper, evidence) {
   note = note.replace(/证据 ID：/g, '来源：');
   note = note.replace(/\n{3,}/g, '\n\n').trim() + '\n';
   assert(!note.includes('公开演示条目。'), `${paper.id}: stale demo label remains`);
+  assert(!note.includes('公开演示笔记，'), `${paper.id}: stale demo label remains`);
   assert(!note.includes('阅读状态是模板演示状态'), `${paper.id}: stale status label remains`);
   for (const item of evidence.filter((entry) => entry.paperId === paper.id)) {
     if (note.includes(item.id))

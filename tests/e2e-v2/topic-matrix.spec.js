@@ -58,7 +58,7 @@ test('matrix excludes archived and unrelated selections, links objects and missi
   await expect(matrix.locator('output')).toHaveText('已选 1 / 4 篇');
   await expect(matrix.getByRole('link', { name: '比较所选论文' })).toHaveAttribute(
     'href',
-    '#/compare?ids=matrix-a',
+    '#/compare?ids=matrix-a&question=action',
   );
   await matrix.getByLabel('矩阵研究维度').selectOption('architecture');
   await expect(matrix.getByRole('rowheader', { name: '数据集', exact: true })).toHaveCount(0);
@@ -68,7 +68,7 @@ test('matrix excludes archived and unrelated selections, links objects and missi
   );
   await matrix.getByRole('checkbox', { name: '选择比较 matrix-c' }).check();
   await matrix.getByRole('link', { name: '比较所选论文' }).click();
-  await expect(page).toHaveURL(/#\/compare\?ids=matrix-a,matrix-c$/);
+  await expect(page).toHaveURL(/#\/compare\?ids=matrix-a,matrix-c&question=action$/);
   await page.goBack();
   await matrix.getByLabel('矩阵研究维度').selectOption('architecture');
   await matrix.getByRole('link', { name: 'matrix-c · 模型架构未整理' }).click();
@@ -88,7 +88,7 @@ test('changing topics resets filters and loads that topic selection', async ({ p
   await expect(matrix.getByRole('checkbox', { name: '选择比较 matrix-b' })).toBeChecked();
   await expect(matrix.getByRole('link', { name: '比较所选论文' })).toHaveAttribute(
     'href',
-    '#/compare?ids=matrix-b',
+    '#/compare?ids=matrix-b&question=action',
   );
 });
 

@@ -71,7 +71,7 @@ export function AppShell({
             : 'settings';
   const nav = [
     ['home', '工作台', '/', BookOpen],
-    ['library', '知识库', workspace ? '/database' : '/library', Database],
+    ['library', '文献', '/library', Database],
     ['topics', '研究专题', '/topics', Layers],
     ['explore', '探索', workspace ? '/research' : '/query', Compass],
     ['settings', '设置与维护', '/manage', Settings],
@@ -299,20 +299,57 @@ export function WorkbenchHome({ dataset, workspace }) {
     reading = papers.filter((p) => p.status === 'reading'),
     pending = dataset.relations.filter((r) => r.status === 'pending');
   const recent = [...papers].sort((a, b) => (b.updated || '').localeCompare(a.updated || ''));
+  const positions = papers
+    .map((paper) => {
+      try {
+        const position = JSON.parse(
+          localStorage.getItem(
+            `pkh-reading-position-${workspace ? 'local' : 'public'}-${paper.id}`,
+          ) || 'null',
+        );
+        return position &&
+          typeof position.updatedAt === 'string' &&
+          typeof position.section === 'string' &&
+          ['note', 'source'].includes(position.mode)
+          ? { ...position, paper }
+          : null;
+      } catch {
+        return null;
+      }
+    })
+    .filter(Boolean)
+    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   const list = reading.length ? reading : recent;
   return (
     <>
       <PageHeader
         label="YOUR RESEARCH, CONNECTED"
-        title="从上次停下的地方继续"
+        title={workspace ? '研究阅读与综合' : '从一个研究问题开始'}
         description="阅读、整理与发现，在一个工作空间里自然衔接。"
         actions={
           <a className="button primary" href={workspace ? '#/edit/new' : '#/library'}>
             <Plus size={16} />
-            收录论文
+            {workspace ? '收录论文' : '浏览论文'}
           </a>
         }
       />
+      {positions[0] && (
+        <section className="resume-reading">
+          <h2>继续上次阅读</h2>
+          <a
+            className="button primary"
+            href={
+              '#/paper/' +
+              positions[0].paper.id +
+              '?' +
+              new URLSearchParams({ mode: positions[0].mode, section: positions[0].section })
+            }
+          >
+            {positions[0].paper.acronym || positions[0].paper.title} ·{' '}
+            {positions[0].section.replace(/^note-/, '')} →
+          </a>
+        </section>
+      )}
       <div className="home-metrics">
         {[
           [papers.length, '篇论文', workspace ? '#/database' : '#/library'],
@@ -330,7 +367,7 @@ export function WorkbenchHome({ dataset, workspace }) {
       <div className="workbench-layout">
         <section>
           <div className="section-heading">
-            <h2>继续阅读</h2>
+            <h2>{workspace ? '阅读中的论文' : '开始阅读'}</h2>
             <a href={workspace ? '#/database' : '#/library'}>全部论文 →</a>
           </div>
           <div className="reading-list">
@@ -371,7 +408,7 @@ export function WorkbenchHome({ dataset, workspace }) {
             <h2>让资料成为研究材料</h2>
             <p>Agent 整理的笔记与关系先进入草稿箱。查看来源、修改内容，再写入知识库。</p>
             <a className="button" href={workspace ? '#/drafts' : '#/manage'}>
-              打开草稿箱 <ArrowRight size={16} />
+              {workspace ? '打开草稿箱' : '了解本地 AI 整理'} <ArrowRight size={16} />
             </a>
           </section>
           <section>

@@ -1,4 +1,6 @@
 import React, { useEffect, useState } from 'react';
+import { AITasks } from './ai-tasks.jsx';
+import { noteSectionChanges } from './lib/note-sections.mjs';
 import { Inbox, Upload, Check, Download } from 'lucide-react';
 import { workspaceRequest } from './workspace.jsx';
 import { PageHeader, objectHref } from './ui.jsx';
@@ -10,7 +12,9 @@ export function DraftInbox({ workspace, refresh, notify, Md, route }) {
     [error, setError] = useState(''),
     [busy, setBusy] = useState(false),
     [edit, setEdit] = useState(false),
-    [confirmed, setConfirmed] = useState(false);
+    [confirmed, setConfirmed] = useState(false),
+    [rejectedFields, setRejectedFields] = useState([]),
+    [rejectedSections, setRejectedSections] = useState([]);
   const load = async () => {
     const r = await workspaceRequest('/api/drafts');
     setDrafts(r.drafts);
@@ -27,6 +31,15 @@ export function DraftInbox({ workspace, refresh, notify, Md, route }) {
       setLoading(false);
     });
   }, []);
+  useEffect(() => {
+    const id = route.params.get('id');
+    if (id) {
+      setSelected(id);
+      setRejectedFields([]);
+      setRejectedSections([]);
+      setConfirmed(false);
+    }
+  }, [route.params.toString()]);
   const draft = drafts.find((d) => d.id === selected),
     record = draft?.record;
   const run = async (fn) => {
@@ -45,6 +58,8 @@ export function DraftInbox({ workspace, refresh, notify, Md, route }) {
     setText(JSON.stringify(d.record, null, 2));
     setEdit(false);
     setConfirmed(false);
+    setRejectedFields([]);
+    setRejectedSections([]);
   };
   const importDraft = async (file) => {
     const envelope = JSON.parse(await file.text());
@@ -66,7 +81,22 @@ export function DraftInbox({ workspace, refresh, notify, Md, route }) {
   const apply = async () => {
     await workspaceRequest(
       '/api/drafts/apply',
-      { id: draft.id, expectedRevision: workspace.revision },
+      {
+        id: draft.id,
+        expectedRevision: workspace.revision,
+        ...(draft.baseRecord
+          ? {
+              acceptedFields: changed.filter((key) => !rejectedFields.includes(key)),
+              ...(sectionChanges.length && !rejectedFields.includes('note')
+                ? {
+                    acceptedNoteSections: sectionChanges
+                      .filter((section) => !rejectedSections.includes(section.id))
+                      .map((section) => section.id),
+                  }
+                : {}),
+            }
+          : {}),
+      },
       workspace.csrfToken,
     );
     await refresh();
@@ -80,6 +110,11 @@ export function DraftInbox({ workspace, refresh, notify, Md, route }) {
         (k) => JSON.stringify(record[k]) !== JSON.stringify(draft.baseRecord?.[k]),
       )
     : [];
+  let sectionChanges = [];
+  try {
+    if (draft?.baseRecord && changed.includes('note'))
+      sectionChanges = noteSectionChanges(draft.baseRecord.note || '', record.note || '');
+  } catch {}
   return (
     <>
       <PageHeader
@@ -107,6 +142,7 @@ export function DraftInbox({ workspace, refresh, notify, Md, route }) {
           {error}
         </p>
       )}
+      <AITasks workspace={workspace} notify={notify} />
       <div className="draft-layout">
         <aside>
           <h2>
@@ -119,7 +155,8 @@ export function DraftInbox({ workspace, refresh, notify, Md, route }) {
               onClick={() => select(d)}
             >
               <small>
-                {d.status === 'applied' ? '已应用' : '待审阅'} · {d.collection}
+                {d.status === 'applied' ? '已应用' : d.status === 'cancelled' ? '已取消' : '待审阅'}{' '}
+                · {d.collection}
               </small>
               <b>{d.record.title || d.record.id}</b>
               <small>{new Date(d.updatedAt).toLocaleDateString()}</small>
@@ -147,7 +184,13 @@ export function DraftInbox({ workspace, refresh, notify, Md, route }) {
           {draft ? (
             <>
               <div className="row between">
-                <span className="badge">{draft.status === 'applied' ? '已应用' : '待审草稿'}</span>
+                <span className="badge">
+                  {draft.status === 'applied'
+                    ? '已应用'
+                    : draft.status === 'cancelled'
+                      ? '已取消'
+                      : '待审草稿'}
+                </span>
                 <a href={objectHref(draft.collection, record.id)}>打开知识库记录 →</a>
               </div>
               <h2>{record.title || record.id}</h2>
@@ -219,13 +262,81 @@ export function DraftInbox({ workspace, refresh, notify, Md, route }) {
                 </>
               ) : (
                 <>
-                  <Md>
-                    {record.note ||
-                      record.analysis ||
-                      record.description ||
-                      record.text ||
-                      '此草稿主要更新结构化属性。'}
-                  </Md>
+                  {draft.baseRecord ? (
+                    changed.map((key) => (
+                      <section className="draft-field-diff" key={key}>
+                        <label>
+                          <input
+                            type="checkbox"
+                            checked={!rejectedFields.includes(key)}
+                            disabled={draft.status === 'applied'}
+                            onChange={() =>
+                              setRejectedFields(
+                                rejectedFields.includes(key)
+                                  ? rejectedFields.filter((field) => field !== key)
+                                  : [...rejectedFields, key],
+                              )
+                            }
+                          />
+                          采纳 {key}
+                        </label>
+                        {key === 'note' && sectionChanges.length > 0 && (
+                          <fieldset className="visual-controls">
+                            <legend>选择采纳章节</legend>
+                            {sectionChanges.map((section) => (
+                              <label key={section.id}>
+                                <input
+                                  type="checkbox"
+                                  checked={!rejectedSections.includes(section.id)}
+                                  onChange={() =>
+                                    setRejectedSections(
+                                      rejectedSections.includes(section.id)
+                                        ? rejectedSections.filter((id) => id !== section.id)
+                                        : [...rejectedSections, section.id],
+                                    )
+                                  }
+                                />
+                                {section.title} ·{' '}
+                                {section.kind === 'added'
+                                  ? '新增'
+                                  : section.kind === 'removed'
+                                    ? '删除'
+                                    : '修改'}
+                              </label>
+                            ))}
+                          </fieldset>
+                        )}
+                        <div className="draft-diff-columns">
+                          <div>
+                            <h3>当前内容</h3>
+                            {typeof draft.baseRecord[key] === 'string' ? (
+                              <Md>{draft.baseRecord[key]}</Md>
+                            ) : (
+                              <pre>
+                                {JSON.stringify(draft.baseRecord[key], null, 2) || '未设置'}
+                              </pre>
+                            )}
+                          </div>
+                          <div>
+                            <h3>建议内容</h3>
+                            {typeof record[key] === 'string' ? (
+                              <Md>{record[key]}</Md>
+                            ) : (
+                              <pre>{JSON.stringify(record[key], null, 2) || '移除字段'}</pre>
+                            )}
+                          </div>
+                        </div>
+                      </section>
+                    ))
+                  ) : (
+                    <Md>
+                      {record.note ||
+                        record.analysis ||
+                        record.description ||
+                        record.text ||
+                        '此草稿主要更新结构化属性。'}
+                    </Md>
+                  )}
                   <details>
                     <summary>查看完整属性与原记录</summary>
                     <pre>{JSON.stringify(record, null, 2)}</pre>
@@ -246,7 +357,14 @@ export function DraftInbox({ workspace, refresh, notify, Md, route }) {
                   </label>
                   <button
                     className="button primary"
-                    disabled={!confirmed || busy || stale || edit}
+                    disabled={
+                      !confirmed ||
+                      busy ||
+                      stale ||
+                      edit ||
+                      (Boolean(draft.baseRecord) &&
+                        changed.every((key) => rejectedFields.includes(key)))
+                    }
                     onClick={() => run(apply)}
                   >
                     <Check size={16} />

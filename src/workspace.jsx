@@ -1730,7 +1730,11 @@ export function ResearchSearch({ workspace, route, Md, notify }) {
                       className="result-title"
                       href={href(
                         '/paper/' + r.paperId,
-                        r.evidenceId ? { evidence: r.evidenceId } : {},
+                        r.evidenceId
+                          ? { evidence: r.evidenceId }
+                          : r.sectionId
+                            ? { mode: 'note', section: r.sectionId }
+                            : {},
                       )}
                     >
                       {find(r.paperId)?.acronym || find(r.paperId)?.title || r.paperId}

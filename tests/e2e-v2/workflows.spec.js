@@ -350,7 +350,7 @@ test('optional actual PDF canvas renders and file-page navigation changes extrac
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
   await go(page, 'document/' + document.id + '?page=1');
-  const canvas = page.locator('canvas');
+  const canvas = page.locator('canvas[role=img]');
   await expect(canvas).toBeVisible();
   await expect
     .poll(() => canvas.evaluate((c) => ({ width: c.width, height: c.height })))

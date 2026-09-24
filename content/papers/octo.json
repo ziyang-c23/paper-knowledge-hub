@@ -43,7 +43,7 @@
     "octo"
   ],
   "abstract": "Large policies pretrained on diverse robot datasets have the potential to transform robotic learning: instead of training new policies from scratch, such generalist robot policies may be finetuned with only a little in-domain data, yet generalize broadly. However, to be widely applicable across a range of robotic learning scenarios, environments, and tasks, such policies need to handle diverse sensors and action spaces, accommodate a variety of commonly used robotic platforms, and finetune readily and efficiently to new domains. In this work, we aim to lay the groundwork for developing open-source, widely applicable, generalist policies for robotic manipulation. As a first step, we introduce Octo, a large transformer-based policy trained on 800k trajectories from the Open X-Embodiment dataset, the largest robot manipulation dataset to date. It can be instructed via language commands or goal images and can be effectively finetuned to robot setups with new sensory inputs and action spaces within a few hours on standard consumer GPUs. In experiments across 9 robotic platforms, we demonstrate that Octo serves as a versatile policy initialization that can be effectively finetuned to new observation and action spaces. We also perform detailed ablations of design decisions for the Octo model, from architecture to training data, to guide future research on building generalist robot models.",
-  "note": "## 背景与研究脉络\n\n### 从逐任务训练到可迁移初始化\n\n机器人模仿学习常为每个机器人、任务单独采集示范，从零训练的策略容易只适用于狭窄场景。跨机器人数据可以共享经验，但数据不仅图像不同，摄像机数量、语言标注、动作坐标、夹爪语义和本体形态也不同。固定接口的策略即使预训练规模大，也可能无法直接接收下游的新传感器或输出新的动作维度。\n\n### 问题定义与适用前提\n\nOcto 学习条件策略 $\\pi_\\theta(a_{t:t+C-1}\\mid o_{t-H+1:t},\\ell\\ \\mathrm{or}\\ g)$。这里 $o$ 是短时观测历史，$\\ell$ 是语言任务，$g$ 是目标图像，$C$ 是预测动作块长度。此式是笔记对接口的统一记号，不是论文额外提出的概率模型。预训练用示范动作监督，目标图像可以从同一轨迹未来帧重标注；部署时输出低层机器人动作，执行器负责实际控制。\n\n| 问题要素 | 本文定义 | 使用时的前提 |\n|---|---|---|\n| 给定数据 | 多机器人离线示范；目标域另有少量示范 | 有可解释的动作语义与对应观测 |\n| 学习目标 | 从任务和观测预测示范动作分布 | 行为克隆信号；不是奖励优化目标 |\n| 共享部分 | Transformer 初始化与跨任务控制表征 | 共享权重不意味着新接口直接可用 |\n| 可变部分 | tokenizer、位置编码、动作 head | 必要时添加模块，再用目标域数据微调 |\n| 验证指标 | 各设置下完整任务成功率 | 需要同时记录任务、试验数与控制协议 |\n\n需要区分两类泛化：\n\n- **开箱使用**：机器人、传感器与控制接口匹配预训练分布，在新的物体位置、光照、背景或干扰物下执行已覆盖任务。\n- **适配使用**：给新的目标域示范，必要时添加 tokenizer 或替换 head，再微调。新力/力矩、新关节空间和新双臂形态的结果属于这一类。\n\n“新物体”“新场景”“新技能”“新本体”不能合成一个泛化指标。Table VII 分开这些维度，显示新物体成功率高于新环境和新技能。\n\n### 技术来源与实验比较对象\n\n以下是依据 Octo §II、§IV 中的定位与实验协议整理的关系；不把它们写成对所有近邻论文的独立全文复核。\n\n| 路线 / 工作 | 与 Octo 共享的部分 | 差异与比较边界 |\n|---|---|---|\n| RT-1-X / RT-2-X（Open X-Embodiment） | 跨机器人数据与语言条件低层控制 | Octo 采用更宽的约 800k 数据混合，对方约 350k；性能差异不能只归因于架构。RT-2-X 为 55B 级模型，且并非全部由本团队同场运行 |\n| RoboCat、GNM / ViNT | 跨本体或跨环境通用策略 | 分别涉及目标条件操作或导航；Octo 的目标是可微调的新观测/动作接口，不能直接拿导航与操作成功率比较 |\n| Diffusion Policy | 连续、多峰动作分布，去噪生成动作块 | Octo 将昂贵视觉 Transformer 与轻量去噪 head 分离，并用于异构跨机器人预训练 |\n| ACT / action chunking | 一次预测多步动作，改善运动连贯性 | Octo 不等同于 ACT；动作块预测与如何执行/融合是不同选择，本文未观察到 temporal ensembling 的额外收益 |\n| VC-1 | 预训练知识用于少量示范学习 | 本文基线是 VC-1 视觉编码器加 MLP、MSE 动作训练；Octo 预训练的是完整策略。对比同时改变了表示、动作头和训练目标 |\n| ResNet + Transformer 从零训练 | 目标域模仿学习与 diffusion 目标 | 作者发现小数据下其 28M 参数架构优于从零训练大型 ViT，因此选择更强的从零训练基线 |\n\n\n\nOcto 不应仅因接收语言输入就被理解为大规模预训练 VLM 加动作解码：本文核心是多机器人行为预训练，文本编码使用冻结 T5。\n\n有限历史与持久记忆分开，扩散动作生成与世界模型分开。\n\n相关引用可从原 PDF 参考文献 [17]（Diffusion Policy）、[57]（VC-1）、[67]（OXE / RT-X）、[81]（ViNT）、[98]（ACT）、[103]（RT-2）回查。OpenVLA 是后续相关路线，不属于本文报告的实验基线。\n\n单个组件已有先例；核心贡献是可扩展接口、训练配方和跨机器人证据的系统组合。论文中的“first”“largest”是 2024 年作者的时间相关主张，不作为当前领域排名。\n\n![Octo 官方总览：多机器人预训练与新接口微调](https://octo-models.github.io/teaser.jpg)\n\n*官方项目总览，对应论文 Figure 1（文件第 1 页）。多样化预训练与目标域微调是两个阶段；右侧新接口能力不表示无需微调。图片需联网点击加载，PDF 原件可本地阅读。*\n\n## 方法与机制\n\n### 信息流：输入 → 表示 → 动作 → 执行\n\n1. **任务输入**：语言由冻结的 T5-base 编码成 token；目标图像通过图像 tokenizer 编码。训练时随机屏蔽语言或目标条件，使同一策略可分别使用两类任务输入。无语言标注的数据始终使用目标图像。\n2. **观测输入**：第三视角与腕部图像经浅层卷积和 patch 化，加入可学习位置编码；历史观测按时间组成 token block。缺失模态整体被 attention mask 屏蔽，不能把补零图像当成真实观测。\n3. **Transformer**：观测 token 只看当前或过去观测，以及任务 token。readout token 能读取之前的任务和观测，但任务/观测 token 不反向读取 readout，因此增加输出头不会改变原输入表示的依赖关系。\n4. **动作输出**：readout embedding 作为条件，轻量 diffusion head 从高斯噪声迭代生成连续动作块。每次动作预测仅计算一次主干，多步去噪在小 head 内执行。\n5. **执行**：将动作还原到目标机器人控制尺度，以 receding-horizon 方式执行一部分，再接收新观测重算。预测块长度不等于一次必须全部开环执行的长度。\n\n![Octo 官方架构图：任务、观测与只读输出 token](https://octo-models.github.io/architecture.jpg)\n\n*Figure 2（文件第 3 页）：绿色是任务，蓝色是观测，紫色是 readout。下半图新增 tokenizer / action head 保留主干参数的初始化；“无需重置主干”不表示微调时冻结主干。见 [架构证据](#/paper/octo?evidence=ev-octo-method)。*\n\n#### 最小接口示意\n\n```text\n语言或目标图像 ──任务 tokenizer──┐\n当前/历史相机 ──观测 tokenizer───┼→ 带 mask 的 Transformer → readout embedding\n可选新增传感器 ──新 tokenizer────┘                              ↓\n                                                   diffusion head + 噪声\n                                                              ↓\n                                               动作块 → 逆归一化 → 控制器\n                                                              ↓\n                                                   新观测 → 再次预测\n```\n\n这是依据论文信息流整理的示意，不是可运行实现。缺失相机与轨迹开头的历史 padding 都要屏蔽；新模态接入需要学习合适的编码。模型只输出动作，闭环执行与机器人状态获取由外部系统完成。\n\n### 学习信号与参数更新\n\n论文 Eq. (1)，文件第 5 页：先取 $x^K\\sim\\mathcal N(0,I)$，再执行\n\n$$\nx^{k-1}=\\alpha\\left(x^k-\\gamma\\epsilon_\\theta(x^k,e,k)+\\mathcal N(0,\\sigma^2I)\\right).\n$$\n\n$e$ 为动作 readout embedding，$k$ 为去噪步；$\\alpha,\\gamma,\\sigma$ 由噪声日程确定，论文省略其步数下标。$x^k$ 是带噪动作块，不是物理环境状态。本文使用 cosine schedule、20 个 diffusion steps；head 为 3 层、隐藏维度 256 的带残差和 LayerNorm 的 MLP（Appendix D）。\n\n为说明训练信号，可将标准 DDPM 噪声预测损失写成下式（笔记展开，非 Octo 新编号公式）：\n\n$$\n\\mathcal L_{\\mathrm{noise}}=\\mathbb E_{a,e,k,\\epsilon}\\left[\\left\\|\\epsilon-\\epsilon_\\theta\\left(\\sqrt{\\bar\\alpha_k}a+\\sqrt{1-\\bar\\alpha_k}\\epsilon,e,k\\right)\\right\\|_2^2\\right],\\qquad \\epsilon\\sim\\mathcal N(0,I).\n$$\n\n$a$ 为示范动作块，$\\bar\\alpha_k$ 为累计噪声系数，和上式简写的 $\\alpha$ 不应直接混同。梯度通过条件 $e$ 更新策略主干与 head；冻结 T5 文本编码器。下游微调更新策略全模型，不能把“保留预训练权重”误读为只训练 adapter。这里的“模仿学习”指监督来自示范动作；diffusion head 虽以噪声预测误差训练，仍属于行为克隆策略训练，不等同于环境奖励驱动的 RL。\n\n[原文机制](#/paper/octo?evidence=ev-octo-method) · [训练与更新范围](#/paper/octo?evidence=ev-octo-training)\n\n### 数据混合与模态缺失\n\n从 OXE 约 1.5M episodes 中筛选 25 个数据集约 800k 条轨迹：排除无图像、不用 delta end-effector 控制、过于重复、低分辨率或任务过窄的数据。作者对较多样的数据提高采样权重，并降低部分重复大数据集的占比。夹爪统一为绝对状态：1 开、0 关。\n\nFractal、Kuka、Bridge 在每个训练 batch 中的期望比例各约 17%；这不是三个数据集原始轨迹数相等。完整混合见 Appendix C / Table III（文件第 14 页）。语言标注仅覆盖 56%，腕部相机覆盖 27%，直接影响条件使用能力。\n\n历史窗口为 2 帧，即当前帧加 1 帧历史。图像增强包括第三视角随机裁剪、缩放到 256×256、颜色扰动，腕部不做随机裁剪且缩放到 128×128；像素归一化到 [-1,1]。16×16 patch 对应第三视角 256 个、腕部 64 个 token，T5 输出 16 个语言 token（Appendix D）。\n\n### 预训练预算与新接口适配\n\n| 配置 | 论文报告 |\n|---|---|\n| Octo-Small | 12 层，hidden 384，MLP 1536，6 heads，27M |\n| Octo-Base | 12 层，hidden 768，MLP 3072，12 heads，93M |\n| 预训练优化 | AdamW；学习率 3e-4；warmup 2000；inverse-square-root decay；weight decay 0.1；梯度裁剪 1 |\n| 预训练预算 | batch 2048，300k steps；Base 在 TPU v4-128 上约 14 h |\n| 微调 | 约 100 条目标示范，50k steps，cosine decay + linear warmup；相同基础配方用于各域 |\n| 微调硬件 | 单张 24GB NVIDIA A5000 约 5 h；属于训练耗时，不是在线控制延迟 |\n\n27M / 93M 是所报告策略变体的规模，不应据此假定整个部署依赖的语言编码器也包含在这个数字中。微调新接口时新增位置编码、轻量输入编码器或输出 head；例如双臂新 head 输出 14 维（两只手各 6 个关节位置与夹爪）。\n\n## 实验与结果分析\n\n### 评测问题、对照与预算\n\n| 问题 | 设置 | 对照 / 预算 | 能支持的判断 |\n|---|---|---|---|\n| 开箱跨机器人控制 | WidowX、UR5、RT-1 Robot；语言任务 | 每机器人两类任务，正文报告每任务 10 次；RT-1-X、部分 RT-2-X | 预训练所覆盖接口与任务下，对新位置/环境扰动的泛化 |\n| 少量数据迁移 | 六个目标域 | 每域约 100 条示范；Scratch、VC-1；Table I 报告每域 20 次 | 新任务/接口的初始化价值 |\n| 关键设计 | WidowX，Octo-Small | 两语言任务 + 两目标图像任务，共 40 次 | 特定任务集合上数据、目标和架构的消融 |\n| 模型规模 | Tiny 10M、Small 27M、Base 93M | UR5/WidowX 各一个语言任务，每机器人 10 次 | 有限任务的规模趋势，不是普适 scaling law |\n| 泛化类型 | WidowX 新物体/环境/技能 | 每类型两任务，共 20 次 | 不同分布变化的难度差异 |\n\nRT-2-X 的 WidowX 数字引用已有工作 [7]，RT-1 Robot 由 RT-2-X 作者协助评估；UR5 未报告 RT-2-X。不能将图中缺失项视作零成功率。\n\n### 六个微调域的接口与成功标准\n\n| 任务 | 输入 / 控制变化 | 示范与测试细节 |\n|---|---|---|\n| Berkeley Insertion | 侧视图像 + 末端 twist + 力/力矩；5 Hz twist 指令，1000 Hz 底层阻抗控制 | 100 条 FMB 示范；预抓 peg 插入 1.5 mm 容差槽；20 次随机板位置 |\n| Stanford Coffee | 咖啡胶囊精确放入咖啡机；10 Hz 末端增量控制 | 118 条示范；4 色胶囊各 5 次。附录相机表述“3rd-person wrist”有歧义，不擅自确认视角 |\n| CMU Baking | 前方第三视角；15 Hz 末端增量控制 | 120 条示范；拿面包放入烤箱并关门；4 个新物体×5 个位置 |\n| Berkeley Pick-Up | 腕部图像 + 本体感觉；关节位置控制 | 100 次各类物体抓取示范；黄色方块 20 次 |\n| Berkeley Coke | 未见过的 ViperX；第三视角 + 腕部，5 Hz 末端增量 | 115 条示范，不同罐子位置；Table I 将其纳入 20 次/域口径 |\n| Berkeley Bimanual | 双 ViperX / ALOHA，左右腕部相机；14 维关节/夹爪 | 右手抓笔、左手拔盖；预测 64 步、执行 12 步再规划；Appendix F 报告 10 次，和 Table I 的 20 次不一致 |\n\n[评测设计依据](#/paper/octo?evidence=ev-octo-protocol) · [微调结果及次数冲突](#/paper/octo?evidence=ev-octo-finetuning)\n\n以上控制频率是对应任务设置，不能作为 Octo 全模型通用运行速度。论文未给所有场景一致的随机种子、置信区间和独立重训统计；小试验数使百分点差异的稳定性需要谨慎解读。\n\n### 微调：整套方案的收益\n\nTable I（文件第 7 页），成功率：\n\n| 方法 | Insertion | Coffee | Baking | Pick-Up | Coke | Bimanual | 平均 |\n|---|---:|---:|---:|---:|---:|---:|---:|\n| ResNet + Transformer Scratch | 10% | 45% | 25% | 0% | 20% | 20% | 20% |\n| VC-1 | 5% | 0% | 30% | 0% | 10% | 50% | 15% |\n| Octo | 70% | 75% | 50% | 60% | 100% | 80% | 72% |\n\nOcto 六项均领先；按原表报告的整数均值，相对从零训练为 **+52 个百分点**。按展示的六项成功率重算，算术平均是 72.5%，原表写 72%；这里保留两种口径，不猜测作者具体的取整规则，也不按有争议的试验数重新加权。基线同时存在网络与动作目标差异，因此该表证明整套预训练与适配方案有效，不能独立证明某个模块带来全部增益。[微调证据](#/paper/octo?evidence=ev-octo-finetuning)\n\n### 零样本：覆盖范围与泛化类型\n\n官方项目页 Results 给出的 Figure 5 对应数值：\n\n| 模型 | WidowX | UR5 | RT-1 Robot |\n|---|---:|---:|---:|\n| RT-1-X | 20% | 35% | 60% |\n| RT-2-X | 50% | 未报告 | 85% |\n| Octo | 50% | 70% | 80% |\n\nOcto 超过 RT-1-X，但模型规模与数据量也增加；在两个有 RT-2-X 结果的平台上接近其成功率，并不意味着具有 RT-2-X 的全部语义迁移能力。正文“29% higher”不明确说明百分比口径；不将其再包装为统一相对增益。\n\nTable VII（文件第 17 页）更直接展示边界：\n\n| 泛化维度 | 两项任务成功率 | 平均 |\n|---|---|---:|\n| 分布内 | 胡萝卜放盘 80%；茄子放锅 90% | 85% |\n| 新物体 | 面包放盘 70%；勺子放手套 90% | 80% |\n| 新环境 | 蘑菇放锅 20%；勺子放布 60% | 40% |\n| 新技能 | 翻倒杯子 10%；方块插槽 0% | 5% |\n\n[泛化分解证据](#/paper/octo?evidence=ev-octo-generalization)。这四组更换了具体任务，不能把跨组差值解读为固定任务、仅改变一个环境因素的因果效应。\n\n“广泛泛化”应拆成可见的这四类；新环境从 85% 降到 40%，不能只说“略降”。新技能几乎失败，说明策略并未从多样预训练自动获得任意技能组合能力。\n\n### 消融：动作目标、数据与架构\n\nTable II / VI，Octo-Small，WidowX 四任务 40 次：\n\n| 配置 | 成功率 | 相对完整配方的差值 |\n|---|---:|---:|\n| 完整 Octo-Small | 83% | — |\n| RT-X 11 数据集混合 | 60% | -23 个百分点 |\n| 仅 Bridge | 43% | -40 个百分点 |\n| 离散动作分类 | 18% | -65 个百分点 |\n| 连续 MSE 动作 | 35% | -48 个百分点 |\n| ResNet-50 + Transformer | 70% | -13 个百分点 |\n\n[消融表及支持范围](#/paper/octo?evidence=ev-octo-ablation)。表中差值按原表整数计算；40 次测试对应 2.5 个百分点的计数步长，83% 等汇总数含取整，不能解读为精确到 1 个百分点的估计。\n\n作者观察 MSE 策略运动缓慢、犹豫，离散动作更果断但抓取精度差；多峰连续生成是合理解释，但仅凭这几项结果不能排除训练配置和优化难度的影响。ResNet 在小数据从零训练中反而更好，故“ViT 更优”限于本文大数据预训练设置。\n\nFigure 6 显示 Tiny→Small→Base 性能随规模上升，但每机器人只有一个任务、10 次测试。本结果支持继续探索规模，不足以拟合可靠的计算/性能规律。\n\n### 负结果与工程取舍\n\nAppendix E（文件第 15 页）：\n\n- 一帧额外历史有效，继续延长未观察到收益；不推出其他长时依赖任务也不需要历史。\n- action chunking 改善动作连贯性；temporal ensembling 在测试中未优于 receding-horizon。\n- 16×16 patch 优于 32×32，token 数增至 4 倍，有计算代价。\n- shuffle buffer 从小规模改善到最多 500k，并在解码图像前跨轨迹混合；每轨迹最多采 100 步，避免长轨迹挤占缓冲区。\n- 相对夹爪表示略提高抓取率，却减少失败后的重试，最终选择绝对开/关表示。不能只报告抓取率而忽略完整任务成功。\n- 加本体感觉有时更差，作者提出 causal confusion 假设；这不是经干预实验确证的因果机制。\n- 更大 T5 或微调末两层未改善语言控制；冻结 T5-base 最好。语言数据不丰富是作者解释，不是已被单独验证的原因。\n\n## 讨论与启发\n\n### 已展示能力与外推边界\n\n**作者指出的限制**：腕部相机并不总能提供收益，部分微调只用第三视角更好；语言条件和目标图像条件存在差距。腕部与语言在数据中的覆盖不足是可能原因。训练仅使用示范，未展示利用在线或次优交互持续改善；评估集中于单臂与双臂操作，没有证明导航或移动操作的通用性。\n\n**从实验可得的范围**：小目标域数据可成功微调，但这不是零数据迁移；零样本任务主要取自预训练分布。Table VII 新技能仅 5%，外推到陌生技能需要额外数据或机制。本文不报告持久记忆、在线参数更新、RL post-training 或 world-model 规划，不应因包含历史窗口就归为这些能力。\n\n### 原文疑点与不可比项\n\n| 问题 | 当前处理 | 影响 |\n|---|---|---|\n| Table I 每域 20 次；Appendix F 双臂 10 次 | 同时保留，未向作者确认 | 不推算统一加权成功率或双臂置信区间 |\n| Table I 均值 72%；按六项重算 72.5% | 原表与重算分列说明，不断言取整算法 | +52 个百分点是原表整数均值口径 |\n| Coffee 的“3rd-person wrist”相机措辞 | 保留歧义 | 不据此配置真实相机接口 |\n| RT-2-X 的部分结果来自引用/协作评测 | 明示来源差异，缺项记为未报告 | 不当作全部同场、同数据、同预算比较 |\n| 当前代码 README 为 v1.5；论文为 arXiv v2 | 版本分别记录 | 不把后续修复、默认参数追溯为论文实验 |\n\n### 复用条件与后续阅读\n\n**复用风险**：新机器人动作坐标、旋转表示、控制尺度和夹爪方向必须核对；模型输出数组不能直接当安全控制指令。论文的可微调结构不替代低层控制器与机器人接口适配。\n\n进一步阅读优先核对 Appendix E 的失败经验、Appendix F 的执行协议，以及目标数据集的坐标和归一化规范。面向 VLA、RL 后训练与长时任务的研究建议保存在独立的个人分析字段，均未作为本文实验结论。\n\n## 资源与复核\n\n### 材料范围与版本\n\n本次仅重组已保存笔记，未重新核验原文或运行实验。原笔记记录的材料包括 arXiv v2、官方项目页及固定提交的代码阅读；此前补充记录曾回看文件第 4、5、7、8、17 页。以下分析、来源与未决疑点沿用这些既有材料。\n\n采用版本：arXiv **2405.12213v2，2024-05-26**，完整 PDF 17 页（含参考文献与附录）。机构：UC Berkeley、Stanford、Carnegie Mellon、Google DeepMind。正式发表信息据官方项目页：RSS 2024。作者列表按本版本 PDF 首页记录；它比当前项目网页多列 Ria Doshi。\n\n[本地完整 PDF](https://arxiv.org/abs/2405.12213v2) · [arXiv v2](https://arxiv.org/abs/2405.12213v2) · [官方项目](https://octo-models.github.io/) · [官方代码](https://github.com/octo-models/octo) · [模型档案](#/entities/model-octo-policy) · [VLA 专题](#/topic/topic-vla)\n\n### 研究资源、版本与复核条件\n\n原文以本地 v2 PDF 为准，17 页，SHA-256 `73bff297cfafe523319162124e6b7f96919c0930e0a380f307255c4c7464ac93`。文件页 1–8 是正文，8–13 含参考文献，14–17 为作者贡献、使用示例、数据混合、超参数、经验与任务协议。它已附加到同一论文记录，可在“原文与全文索引”及并排阅读中使用。以下链接使用 PDF 文件页序（从 1 开始），不是推断的印刷页码。\n\n官方项目页展示模型结构、数据混合、实验设置与结果表，连接 GitHub、Colab 和 Hugging Face。网页视频缩略图不构成成功率证据；本笔记的结果依据论文表格和网页 Results 数值，不依据未逐段观看的视频推断鲁棒性。\n\n#### 从论文机制到官方实现\n\n固定读取提交 [`241fb3514b7c40957a86d869fecb7c7fc353f540`](https://github.com/octo-models/octo/tree/241fb3514b7c40957a86d869fecb7c7fc353f540)，读取日期 2026-09-23。这是当前官方实现快照；README 已包含 v1.5 更新，不能直接等同于论文 v2 实验版本。\n\n| 数据流位置 | 固定源码 | 核对到的行为及含义 |\n|---|---|---|\n| 观测 → 主干 | [OctoModel.sample_actions，174 行起](https://github.com/octo-models/octo/blob/241fb3514b7c40957a86d869fecb7c7fc353f540/octo/model/octo_model.py#L174) | 观测 shape 为 batch×window×…，读取 timestep_pad_mask，先调用一次 run_transformer；开始轨迹时需屏蔽不存在的历史帧 |\n| 主干 → 动作块 | [DiffusionActionHead，386 行起](https://github.com/octo-models/octo/blob/241fb3514b7c40957a86d869fecb7c7fc353f540/octo/model/components/action_heads.py#L386) | 噪声动作按 horizon×action_dim 展平，20 步 cosine 去噪；loss 对 padding 做 mask，预测只返回历史窗口最后时刻的未来动作块 |\n| 动作 → 机器人尺度 | [sample_actions，221 行起](https://github.com/octo-models/octo/blob/241fb3514b7c40957a86d869fecb7c7fc353f540/octo/model/octo_model.py#L221) | 提供统计量时执行 mean/std 或 p01/p99 逆归一化，并保留 mask 排除的维度；不提供统计量不能假定输出就是硬件动作单位 |\n| 目标域微调 | [finetune_config.py](https://github.com/octo-models/octo/blob/241fb3514b7c40957a86d869fecb7c7fc353f540/scripts/configs/finetune_config.py) | full 模式 frozen_keys=None；另有 head_only/head_mlp_only。当前示例 50k steps、batch 256、window_size=1、action_horizon=4；这些默认值不覆盖论文报告的 2 帧预训练历史 |\n\n当前 README 的 v1.5 更新包括逐时间步重复语言 token、语言改写增强，以及 diffusion dropout、attention mask 和增强随机种子的修复。它们不能追溯归入原论文实验。当前代码 LICENSE 为 MIT（需保留版权和许可）；本次没有单独核对每个权重和 OXE 子数据集的许可证，不将 MIT 自动扩展到权重和数据。\n\nREADME FAQ 说明预训练动作块为 4 步；真实机器人执行可以取首步或多个动作。与此相对，论文双臂任务重新训练的动作 head 使用 64 步预测、12 步执行。两者分别是通用模型说明与具体下游设置，不是互相矛盾的唯一常数。\n\n\n#### 资源与复现边界\n\n- 论文发布 Small / Base 权重、JAX 预训练与微调代码、OXE 数据加载工具。权重与实际数据要分别获取；代码公开不代表所有数据可以任意再分发。\n- 固定代码快照只支持静态接口分析，未安装训练环境、下载权重与全量数据，也未运行机器人或复现成功率。\n- 推荐从离线样例检查 shape、history mask、动作逆归一化、chunk 执行开始，再进行目标域训练。训练和部署版本、数据统计量、控制器及评测初始条件都需固定。\n- v2 PDF 与当前项目作者名单存在差异，按采用 PDF 版本保留 Ria Doshi；Table I 与 Appendix F 双臂试验次数冲突，未向作者确认。当前代码不宣称就是 2024 论文实验使用的提交。\n\n### 主张—证据—原文导航\n\n| 要回查的主张 | 证据记录 | 本地原文 | 阅读重点 |\n|---|---|---|---|\n| 任务与观测如何进入策略 | [查看证据](#/paper/octo?evidence=ev-octo-method) | [§III-A / Figure 2]](https://arxiv.org/abs/2405.12213v2#page=4) | readout 只读；接口可扩展不表示主干冻结 |\n| 扩散目标与全模型微调 | [查看证据](#/paper/octo?evidence=ev-octo-training) | [§III-C/D]](https://arxiv.org/abs/2405.12213v2#page=5) | 昂贵主干一次前向；轻量 head 多步去噪 |\n| 数据筛选与混合 | [查看证据](#/paper/octo?evidence=ev-octo-data) | [§III-B；Table III 见文件 14 页]](https://arxiv.org/abs/2405.12213v2#page=4) | batch 权重与原始轨迹比例分开 |\n| 评测问题与新接口 | [查看证据](#/paper/octo?evidence=ev-octo-protocol) | [§IV Evaluation setups]](https://arxiv.org/abs/2405.12213v2#page=5) | 开箱接口匹配；新接口用目标域数据适配 |\n| 六域微调 | [查看证据](#/paper/octo?evidence=ev-octo-finetuning) | [Table I；Appendix F 见文件 17 页]](https://arxiv.org/abs/2405.12213v2#page=7) | 原表均值、重算均值和试验数疑点 |\n| 消融结论 | [查看证据](#/paper/octo?evidence=ev-octo-ablation) | [Table II；Table VI 见文件 17 页]](https://arxiv.org/abs/2405.12213v2#page=7) | 40 次试验、条件混合与单任务反例 |\n| 模态覆盖与作者讨论 | [查看证据](#/paper/octo?evidence=ev-octo-limitations) | [§V]](https://arxiv.org/abs/2405.12213v2#page=8) | 27% 腕部 / 56% 语言；原因尚属解释 |\n| 历史与动作块 | [查看证据](#/paper/octo?evidence=ev-octo-history-p15) | [Appendix E]](https://arxiv.org/abs/2405.12213v2#page=15) | 仅限所测任务的负结果 |\n| 夹爪语义与重试 | [查看证据](#/paper/octo?evidence=ev-octo-gripper-p15) | [Appendix E]](https://arxiv.org/abs/2405.12213v2#page=15) | 抓取率与最终任务成功率不同 |\n| 零样本泛化分解 | [查看证据](#/paper/octo?evidence=ev-octo-generalization) | [Table VII]](https://arxiv.org/abs/2405.12213v2#page=17) | 任务组不同，不是单因素环境消融 |\n\n补充页：[文件第 14 页：数据采样与超参数]](https://arxiv.org/abs/2405.12213v2#page=14) · [文件第 16 页：目标域任务协议]](https://arxiv.org/abs/2405.12213v2#page=16)。论文证据与代码静态观察不能替代实际运行证据。\n\n### 叙述结构与关键措辞\n\nIntroduction 先从逐任务采集成本引出跨机器人共享经验，再指出固定接口、缺乏有效微调与封闭资源三个缺口，随后用模块化 token 接口承接设计。实验按开箱控制、少数据适配、设计消融逐层支撑主张。这种组织把“通用”转成具体可检验的能力维度。\n\n“Can wholly retain the pretrained weights”指不必重置主干初始化，不是训练期间保持权重不变。“Out-of-the-box”需和预训练覆盖的机器人/任务同时理解。“52%”在 Table I 报告均值的比较中宜表达为约 52 个百分点；72.5% 与原表 72% 的区别保留，取整方式未知；“first”“largest”应保留发表时点。Discussion 将腕部与语言不足归于数据覆盖，是合理假说，但论文未提供只改变覆盖比例的因果消融。\n\n### Abstract｜完整双语\n\n**English Original**\n\nLarge policies pretrained on diverse robot datasets have the potential to transform robotic learning: instead of training new policies from scratch, such generalist robot policies may be finetuned with only a little in-domain data, yet generalize broadly. However, to be widely applicable across a range of robotic learning scenarios, environments, and tasks, such policies need to handle diverse sensors and action spaces, accommodate a variety of commonly used robotic platforms, and finetune readily and efficiently to new domains. In this work, we aim to lay the groundwork for developing open-source, widely applicable, generalist policies for robotic manipulation. As a first step, we introduce Octo, a large transformer-based policy trained on 800k trajectories from the Open X-Embodiment dataset, the largest robot manipulation dataset to date. It can be instructed via language commands or goal images and can be effectively finetuned to robot setups with new sensory inputs and action spaces within a few hours on standard consumer GPUs. In experiments across 9 robotic platforms, we demonstrate that Octo serves as a versatile policy initialization that can be effectively finetuned to new observation and action spaces. We also perform detailed ablations of design decisions for the Octo model, from architecture to training data, to guide future research on building generalist robot models.\n\n**中文翻译**\n\n在多样机器人数据集上预训练的大型策略有潜力改变机器人学习：不必从零训练新策略，这类通用机器人策略或许只需少量域内数据就能微调，并获得广泛泛化。然而，要广泛适用于不同机器人学习场景、环境与任务，这类策略必须处理多样的传感器和动作空间，适应多种常用机器人平台，并能方便、高效地微调到新领域。本工作旨在为开发开源、广泛适用的通用机器人操作策略奠定基础。作为第一步，我们提出 Octo：一个大型 Transformer 策略，在迄今最大的机器人操作数据集 Open X-Embodiment 的 80 万条轨迹上训练。它可以通过语言指令或目标图像接受任务，并可在标准消费级 GPU 上数小时内有效微调到具有新感知输入和动作空间的机器人设置。在涵盖 9 个机器人平台的实验中，我们展示 Octo 可作为通用的策略初始化，有效微调到新的观测和动作空间。我们还对 Octo 从架构到训练数据的设计选择进行了详细消融，以指导未来通用机器人模型的研究。\n\n### Introduction｜完整双语\n\n**English Original**\n\nThe common approach for robotic learning is to train policies on datasets collected for the specific robot and task at hand. Learning from scratch in this way requires significant data collection effort for each task, and the resulting policies usually exhibit only narrow generalization. In principle, collected experience from other robots and tasks offers a possible solution, exposing models to a diverse set of robotic control problems that may improve generalization and performance on downstream tasks. However, even as general-purpose models become ubiquitous in natural language [68, 88]) and computer vision [76, 44], it has proven challenging to build the analogous “general-purpose robot model” that can control many robots for many tasks. Training a unified control policy in robotics presents unique challenges, requiring handling different robot embodiments, sensor setups, action spaces, task specifications, environments, and compute budgets.\n\nTowards this direction, several works have proposed robotic foundation models that directly map robot observations to actions and provide zero-shot or few-shot generalization to new domains and robots. We broadly refer to these models as “generalist robot policies” (GRPs), emphasizing their ability to perform low-level visuomotor control across tasks, environments, and robotic systems [75, 9, 23, 103, 10, 81, 1, 91, 35, 94, 45]. For example, the GNM model [80] generalizes across different robotic navigation scenarios, the RoboCat model [9] handles different robot embodiments for goal-conditioned tasks, and the RT-X model [67] performs language-conditioned manipulation across five robot embodiments. Although these models represent significant steps toward a true “general-purpose robot model,” they have been limited in multiple important aspects: they typically constrain downstream users to a pre-defined and often restrictive set of input observations, e.g., a single camera stream; they lack support for effective finetuning to new domains; and importantly, the largest of these models are not available to the general public.\n\nWe design a system for pretraining generalist robot policies more suitable for the diversity of interfaces in downstream robotic applications. The core of our model is a transformer architecture that maps arbitrary input tokens (created from observations and tasks) to output tokens (then decoded into actions), which can be trained on a diverse dataset of robots and tasks. With no additional training, this policy can accept different camera configurations (e.g., workspace or wrist cameras), can control different robots, and can be guided via either language commands or goal images — all by simply changing which tokens are fed into the model. Most importantly, the model can be adapted to new robot setups with new sensory inputs, action spaces, or morphologies by adding appropriate adapters and finetuning with a small target domain dataset and an accessible compute budget.\n\nOur primary contribution is Octo, a transformer-based policy pretrained on the largest robot manipulation dataset to date: 800k robot demonstrations from the Open X-Embodiment dataset [67]. Octo is the first GRP that can be effectively finetuned to new observations and action spaces and the first generalist robot manipulation policy that is fully open-source, including the training pipeline, model checkpoints, and data. Finally, while the individual components that comprise Octo — a transformer backbone, support for both language and goal image specification, and a diffusion head to model expressive action distributions — have been discussed in prior work, the particular combination of these components into a powerful generalist robot policy is unique and novel.\n\nWe demonstrate through extensive experiments on 9 robots across 4 institutions that our combined system leads to state-of-the-art performance for out-of-the-box multi-robot control for single and dual-arm manipulation tasks and that Octo can be used as an effective initialization for finetuning to unseen setups with new observation and action spaces. In the process, we carefully study the effect of different design decisions when pretraining GRPs; we evaluate how the choice of data distribution, model architecture, and policy formulation affects the quality of the pretrained GRP. Our evaluation highlights the utility of scale and flexibility: our best models are those trained on the widest data mixtures, with the least restrictive inductive biases, and with policy objectives that can fit the diversity of behaviors in the pretraining data.\n\nAlong with this paper, we release all resources required to train, use, reproduce, and finetune an Octo model. We provide pretrained Octo model checkpoints with 27M and 93M parameters that, out of the box, support multiple RGB camera inputs as well as both language and goal image task specification. We also provide scripts for finetuning these models on new domains, as well as our complete pretraining pipeline, including optimized data loaders, transformer implementations for multimodal inputs, and tools to monitor training progress.\n\n**中文翻译**\n\n机器人学习的常见做法是在针对当前特定机器人和任务收集的数据集上训练策略。这种从零学习的方式要求为每项任务投入大量数据采集工作，而且所得策略通常只具备狭窄的泛化能力。原则上，其他机器人和任务积累的经验提供了一种可能的解决方案：让模型接触多样化机器人控制问题，或许能改善下游任务的泛化和性能。然而，尽管通用模型已普遍用于自然语言 [68, 88] 和计算机视觉 [76, 44]，构建能够控制多种机器人执行多种任务的对应“通用机器人模型”仍然困难。在机器人领域训练统一控制策略面临独特挑战：需要处理不同机器人本体、传感器设置、动作空间、任务描述、环境和计算预算。\n\n沿着这一方向，多项工作提出了直接将机器人观测映射为动作的机器人基础模型，并对新领域和机器人提供零样本或少样本泛化。我们将这些模型统称为“通用机器人策略”（GRP），强调其跨任务、环境和机器人系统进行低层视觉运动控制的能力 [75, 9, 23, 103, 10, 81, 1, 91, 35, 94, 45]。例如，GNM 模型 [80] 可泛化到不同机器人导航场景，RoboCat 模型 [9] 处理目标条件任务中的不同机器人本体，RT-X 模型 [67] 在五种机器人本体上执行语言条件操作。尽管这些模型是走向真正“通用机器人模型”的重要进展，它们在几个重要方面仍受限制：通常要求下游用户使用预先定义且往往受限的输入观测，例如单路相机；缺少对新领域有效微调的支持；并且，最大规模的这类模型尚未向公众开放。\n\n我们设计了一套通用机器人策略预训练系统，更适合下游机器人应用中多样化的接口。模型核心是 Transformer 架构，将任意输入 token（由观测和任务生成）映射为输出 token（再解码为动作），可在多样的机器人与任务数据集上训练。无需额外训练，该策略即可接受不同相机配置（如工作空间或腕部相机）、控制不同机器人，并通过语言指令或目标图像引导——只需改变送入模型的 token。更重要的是，通过添加合适的适配器，使用小规模目标域数据集和可承担的计算预算进行微调，模型可以适配具有新感知输入、动作空间或形态的机器人设置。\n\n我们的主要贡献是 Octo，一个基于 Transformer 的策略，在迄今最大的机器人操作数据集——Open X-Embodiment 的 80 万条机器人示范——上预训练 [67]。Octo 是第一个能够有效微调到新观测和动作空间的 GRP，也是第一个完全开源的通用机器人操作策略，包括训练流程、模型检查点和数据。最后，虽然构成 Octo 的各个组件——Transformer 主干、同时支持语言与目标图像描述、以及表达丰富动作分布的 diffusion head——已在先前工作中讨论，将这些组件特定地组合成强大的通用机器人策略是独特且新颖的。\n\n通过四家机构、九种机器人的广泛实验，我们展示组合系统在单臂和双臂操作的开箱多机器人控制上达到了最先进性能，且 Octo 可作为有效初始化，微调到具有新观测和动作空间的未见设置。在此过程中，我们仔细研究了预训练 GRP 时不同设计选择的影响，评估数据分布、模型架构和策略形式如何影响预训练 GRP 的质量。评估突出了规模与灵活性的价值：最好的模型使用最广的数据混合、限制最少的归纳偏置，以及能够拟合预训练数据中多样行为的策略目标。\n\n随本文一起，我们发布训练、使用、复现和微调 Octo 所需的全部资源。我们提供 2700 万和 9300 万参数的预训练 Octo 模型检查点，开箱支持多路 RGB 相机输入，以及语言和目标图像两类任务描述。我们也提供将这些模型微调到新领域的脚本，以及完整预训练流程，包括优化的数据加载器、多模态输入 Transformer 实现和监控训练进度的工具。\n\n### Conclusion 对应终章｜完整双语\n\n本版本无独立 Conclusion；以下完整收录 §V **Discussion and Future Work**（文件第 8 页），作为对应终章。\n\n**English Original**\n\nWe introduced Octo, a large transformer-based policy pretrained on the largest robot manipulation dataset to date, 800k robot trajectories. We demonstrated that Octo can solve a variety of tasks out-of-the-box and showed how Octo’s compositional design enables finetuning to new inputs and action spaces, making Octo a versatile initialization for a wide range of robotic control problems. Apart from the model itself, we have released our full training and finetuning code, alongside tools that make it easier to train on large robot datasets.\n\nWhile Octo achieves strong performance in both zero-shot and finetuning evaluations, we find that the current model still has several short-comings, which we attribute in large parts to characteristics of the training data. First, we found that the current Octo model struggles with adequately processing wrist camera information. Often finetuning results were stronger when using only a third person camera instead of combining third person and wrist camera. Additionally, we notice a large difference between language-conditioned policy performance and goal-conditioned policy performance. In both cases, a lack of the respective modalities in the training data is the likely reason: only 27% of the data contains wrist camera information and only 56% of the pretraining data contains language annotations.\n\nExpanding the data used to train Octo is a natural avenue of improvement. Since the Open X-Embodiment dataset is comprised of optimal robot demonstrations, the current model trains via imitation; future work may consider learning from sub-optimal or online interaction data that require alternative objectives. Further, while we trained and evaluated Octo exclusively on single and dual-arm manipulators; expanding to a wider set of robots that perform navigation or mobile manipulation would be an direction of high opportunity.\n\nWhile Octo represents a step towards building generalist robot policies that work out-of-the-box on diverse robot setups, there remains work to improve the model, including better language conditioning, improved support for wrist cameras, and incorporating data beyond optimal demonstrations. We hope that Octo offers a simple launchpad for researchers and practitioners to access larger robotic datasets and leverage pretrained robotics models for efficient learning of new tasks and broad generalization.\n\n**中文翻译**\n\n我们介绍了 Octo，一个大型 Transformer 策略，在迄今最大的机器人操作数据集——80 万条机器人轨迹——上预训练。我们展示了 Octo 可开箱解决多种任务，并说明其可组合设计如何支持对新输入和动作空间进行微调，使 Octo 成为广泛机器人控制问题的通用初始化。除模型本身外，我们还发布了完整训练和微调代码，以及简化大型机器人数据集训练的工具。\n\n尽管 Octo 在零样本和微调评估中表现强劲，我们发现当前模型仍存在若干不足，并认为这些不足很大程度上来自训练数据的特征。首先，当前 Octo 模型难以充分处理腕部相机信息。微调时，仅使用第三视角相机的结果往往优于同时使用第三视角和腕部相机。此外，语言条件策略和目标条件策略的表现存在较大差距。在这两种情况下，训练数据缺少相应模态可能是原因：仅 27% 的数据包含腕部相机信息，仅 56% 的预训练数据具有语言标注。\n\n扩展用于训练 Octo 的数据是一条自然的改进途径。由于 Open X-Embodiment 数据集由最优机器人示范组成，当前模型通过模仿学习训练；未来工作可考虑从次优或在线交互数据学习，而这需要其他目标。此外，我们仅在单臂和双臂机械臂上训练和评估 Octo；扩展到执行导航或移动操作的更广泛机器人将是很有潜力的方向。\n\n虽然 Octo 朝着构建可在多样机器人设置中开箱工作的通用机器人策略迈出了一步，仍需进一步改善模型，包括更好的语言条件控制、对腕部相机更好的支持，以及纳入最优示范之外的数据。我们希望 Octo 能为研究者和实践者提供一个简单起点，使其接触更大规模机器人数据集，并利用预训练机器人模型高效学习新任务、实现广泛泛化。\n",
+  "note": "## 论文概览\n\nOcto 的价值是把跨机器人演示预训练变成一个能够改换观测与动作接口的策略初始化。理解它应抓住两个变化：共享 Transformer 处理可变输入，连续扩散头生成一段动作；新机器人用少量演示适配，而不是直接获得任意新技能。\n\n先读方法中的输入—readout—扩散头，再看六个微调域的实验条件。最后回到零样本和新技能结果，区分“适配有效”与“直接泛化有效”。这两类结论支持不同的使用方式。[原文 Fig.2、Table I](https://arxiv.org/pdf/2405.12213v2#page=4)\n\n## 研究背景与问题定义\n\n### 从逐任务训练到可迁移初始化\n\n机器人模仿学习常为每个机器人、任务单独采集示范，从零训练的策略容易只适用于狭窄场景。跨机器人数据可以共享经验，但数据不仅图像不同，摄像机数量、语言标注、动作坐标、夹爪语义和本体形态也不同。固定接口的策略即使预训练规模大，也可能无法直接接收下游的新传感器或输出新的动作维度。\n\n### 问题定义与适用前提\n\nOcto 学习条件策略 $\\pi_\\theta(a_{t:t+C-1}\\mid o_{t-H+1:t},\\ell\\ \\mathrm{or}\\ g)$。这里 $o$ 是短时观测历史，$\\ell$ 是语言任务，$g$ 是目标图像，$C$ 是预测动作块长度。此式是笔记对接口的统一记号，不是论文额外提出的概率模型。预训练用示范动作监督，目标图像可以从同一轨迹未来帧重标注；部署时输出低层机器人动作，执行器负责实际控制。\n\n| 问题要素 | 本文定义 | 使用时的前提 |\n|---|---|---|\n| 给定数据 | 多机器人离线示范；目标域另有少量示范 | 有可解释的动作语义与对应观测 |\n| 学习目标 | 从任务和观测预测示范动作分布 | 行为克隆信号；不是奖励优化目标 |\n| 共享部分 | Transformer 初始化与跨任务控制表征 | 共享权重不意味着新接口直接可用 |\n| 可变部分 | tokenizer、位置编码、动作 head | 必要时添加模块，再用目标域数据微调 |\n| 验证指标 | 各设置下完整任务成功率 | 需要同时记录任务、试验数与控制协议 |\n\n需要区分两类泛化：\n\n- **开箱使用**：机器人、传感器与控制接口匹配预训练分布，在新的物体位置、光照、背景或干扰物下执行已覆盖任务。\n- **适配使用**：给新的目标域示范，必要时添加 tokenizer 或替换 head，再微调。新力/力矩、新关节空间和新双臂形态的结果属于这一类。\n\n“新物体”“新场景”“新技能”“新本体”不能合成一个泛化指标。Table VII 分开这些维度，显示新物体成功率高于新环境和新技能。\n\n## 相关工作\n\n### 技术来源与实验比较对象\n\n以下是依据 Octo §II、§IV 中的定位与实验协议整理的关系；不把它们写成对所有近邻论文的独立全文复核。\n\n| 路线 / 工作 | 与 Octo 共享的部分 | 差异与比较边界 |\n|---|---|---|\n| RT-1-X / RT-2-X（Open X-Embodiment） | 跨机器人数据与语言条件低层控制 | Octo 采用更宽的约 800k 数据混合，对方约 350k；性能差异不能只归因于架构。RT-2-X 为 55B 级模型，且并非全部由本团队同场运行 |\n| RoboCat、GNM / ViNT | 跨本体或跨环境通用策略 | 分别涉及目标条件操作或导航；Octo 的目标是可微调的新观测/动作接口，不能直接拿导航与操作成功率比较 |\n| Diffusion Policy | 连续、多峰动作分布，去噪生成动作块 | Octo 将昂贵视觉 Transformer 与轻量去噪 head 分离，并用于异构跨机器人预训练 |\n| ACT / action chunking | 一次预测多步动作，改善运动连贯性 | Octo 不等同于 ACT；动作块预测与如何执行/融合是不同选择，本文未观察到 temporal ensembling 的额外收益 |\n| VC-1 | 预训练知识用于少量示范学习 | 本文基线是 VC-1 视觉编码器加 MLP、MSE 动作训练；Octo 预训练的是完整策略。对比同时改变了表示、动作头和训练目标 |\n| ResNet + Transformer 从零训练 | 目标域模仿学习与 diffusion 目标 | 作者发现小数据下其 28M 参数架构优于从零训练大型 ViT，因此选择更强的从零训练基线 |\n\n\n\nOcto 不应仅因接收语言输入就被理解为大规模预训练 VLM 加动作解码：本文核心是多机器人行为预训练，文本编码使用冻结 T5。\n\n有限历史与持久记忆分开，扩散动作生成与世界模型分开。\n\n相关引用可从原 PDF 参考文献 [17]（Diffusion Policy）、[57]（VC-1）、[67]（OXE / RT-X）、[81]（ViNT）、[98]（ACT）、[103]（RT-2）回查。OpenVLA 是后续相关路线，不属于本文报告的实验基线。\n\n单个组件已有先例；核心贡献是可扩展接口、训练配方和跨机器人证据的系统组合。论文中的“first”“largest”是 2024 年作者的时间相关主张，不作为当前领域排名。\n\n![Octo 官方总览：多机器人预训练与新接口微调](https://octo-models.github.io/teaser.jpg)\n\n*官方项目总览，对应论文 Figure 1（文件第 1 页）。多样化预训练与目标域微调是两个阶段；右侧新接口能力不表示无需微调。图片需联网点击加载，PDF 原件可本地阅读。*\n\n## 方法\n\n### 信息流：输入 → 表示 → 动作 → 执行\n\n1. **任务输入**：语言由冻结的 T5-base 编码成 token；目标图像通过图像 tokenizer 编码。训练时随机屏蔽语言或目标条件，使同一策略可分别使用两类任务输入。无语言标注的数据始终使用目标图像。\n2. **观测输入**：第三视角与腕部图像经浅层卷积和 patch 化，加入可学习位置编码；历史观测按时间组成 token block。缺失模态整体被 attention mask 屏蔽，不能把补零图像当成真实观测。\n3. **Transformer**：观测 token 只看当前或过去观测，以及任务 token。readout token 能读取之前的任务和观测，但任务/观测 token 不反向读取 readout，因此增加输出头不会改变原输入表示的依赖关系。\n4. **动作输出**：readout embedding 作为条件，轻量 diffusion head 从高斯噪声迭代生成连续动作块。每次动作预测仅计算一次主干，多步去噪在小 head 内执行。\n5. **执行**：将动作还原到目标机器人控制尺度，以 receding-horizon 方式执行一部分，再接收新观测重算。预测块长度不等于一次必须全部开环执行的长度。\n\n![Octo 官方架构图：任务、观测与只读输出 token](https://octo-models.github.io/architecture.jpg)\n\n*Figure 2（文件第 3 页）：绿色是任务，蓝色是观测，紫色是 readout。下半图新增 tokenizer / action head 保留主干参数的初始化；“无需重置主干”不表示微调时冻结主干。见 [架构证据](#/paper/octo?evidence=ev-octo-method)。*\n\n#### 最小接口示意\n\n```text\n语言或目标图像 ──任务 tokenizer──┐\n当前/历史相机 ──观测 tokenizer───┼→ 带 mask 的 Transformer → readout embedding\n可选新增传感器 ──新 tokenizer────┘                              ↓\n                                                   diffusion head + 噪声\n                                                              ↓\n                                               动作块 → 逆归一化 → 控制器\n                                                              ↓\n                                                   新观测 → 再次预测\n```\n\n这是依据论文信息流整理的示意，不是可运行实现。缺失相机与轨迹开头的历史 padding 都要屏蔽；新模态接入需要学习合适的编码。模型只输出动作，闭环执行与机器人状态获取由外部系统完成。\n\n### 学习信号与参数更新\n\n论文 Eq. (1)，文件第 5 页：先取 $x^K\\sim\\mathcal N(0,I)$，再执行\n\n$$\nx^{k-1}=\\alpha\\left(x^k-\\gamma\\epsilon_\\theta(x^k,e,k)+\\mathcal N(0,\\sigma^2I)\\right).\n$$\n\n$e$ 为动作 readout embedding，$k$ 为去噪步；$\\alpha,\\gamma,\\sigma$ 由噪声日程确定，论文省略其步数下标。$x^k$ 是带噪动作块，不是物理环境状态。本文使用 cosine schedule、20 个 diffusion steps；head 为 3 层、隐藏维度 256 的带残差和 LayerNorm 的 MLP（Appendix D）。\n\n为说明训练信号，可将标准 DDPM 噪声预测损失写成下式（笔记展开，非 Octo 新编号公式）：\n\n$$\n\\mathcal L_{\\mathrm{noise}}=\\mathbb E_{a,e,k,\\epsilon}\\left[\\left\\|\\epsilon-\\epsilon_\\theta\\left(\\sqrt{\\bar\\alpha_k}a+\\sqrt{1-\\bar\\alpha_k}\\epsilon,e,k\\right)\\right\\|_2^2\\right],\\qquad \\epsilon\\sim\\mathcal N(0,I).\n$$\n\n$a$ 为示范动作块，$\\bar\\alpha_k$ 为累计噪声系数，和上式简写的 $\\alpha$ 不应直接混同。梯度通过条件 $e$ 更新策略主干与 head；冻结 T5 文本编码器。下游微调更新策略全模型，不能把“保留预训练权重”误读为只训练 adapter。这里的“模仿学习”指监督来自示范动作；diffusion head 虽以噪声预测误差训练，仍属于行为克隆策略训练，不等同于环境奖励驱动的 RL。\n\n[原文机制](#/paper/octo?evidence=ev-octo-method) · [训练与更新范围](#/paper/octo?evidence=ev-octo-training)\n\n### 数据混合与模态缺失\n\n从 OXE 约 1.5M episodes 中筛选 25 个数据集约 800k 条轨迹：排除无图像、不用 delta end-effector 控制、过于重复、低分辨率或任务过窄的数据。作者对较多样的数据提高采样权重，并降低部分重复大数据集的占比。夹爪统一为绝对状态：1 开、0 关。\n\nFractal、Kuka、Bridge 在每个训练 batch 中的期望比例各约 17%；这不是三个数据集原始轨迹数相等。完整混合见 Appendix C / Table III（文件第 14 页）。语言标注仅覆盖 56%，腕部相机覆盖 27%，直接影响条件使用能力。\n\n历史窗口为 2 帧，即当前帧加 1 帧历史。图像增强包括第三视角随机裁剪、缩放到 256×256、颜色扰动，腕部不做随机裁剪且缩放到 128×128；像素归一化到 [-1,1]。16×16 patch 对应第三视角 256 个、腕部 64 个 token，T5 输出 16 个语言 token（Appendix D）。\n\n### 预训练预算与新接口适配\n\n| 配置 | 论文报告 |\n|---|---|\n| Octo-Small | 12 层，hidden 384，MLP 1536，6 heads，27M |\n| Octo-Base | 12 层，hidden 768，MLP 3072，12 heads，93M |\n| 预训练优化 | AdamW；学习率 3e-4；warmup 2000；inverse-square-root decay；weight decay 0.1；梯度裁剪 1 |\n| 预训练预算 | batch 2048，300k steps；Base 在 TPU v4-128 上约 14 h |\n| 微调 | 约 100 条目标示范，50k steps，cosine decay + linear warmup；相同基础配方用于各域 |\n| 微调硬件 | 单张 24GB NVIDIA A5000 约 5 h；属于训练耗时，不是在线控制延迟 |\n\n27M / 93M 是所报告策略变体的规模，不应据此假定整个部署依赖的语言编码器也包含在这个数字中。微调新接口时新增位置编码、轻量输入编码器或输出 head；例如双臂新 head 输出 14 维（两只手各 6 个关节位置与夹爪）。\n\n## 实验设计\n\n### 评测问题、对照与预算\n\n| 问题 | 设置 | 对照 / 预算 | 能支持的判断 |\n|---|---|---|---|\n| 开箱跨机器人控制 | WidowX、UR5、RT-1 Robot；语言任务 | 每机器人两类任务，正文报告每任务 10 次；RT-1-X、部分 RT-2-X | 预训练所覆盖接口与任务下，对新位置/环境扰动的泛化 |\n| 少量数据迁移 | 六个目标域 | 每域约 100 条示范；Scratch、VC-1；Table I 报告每域 20 次 | 新任务/接口的初始化价值 |\n| 关键设计 | WidowX，Octo-Small | 两语言任务 + 两目标图像任务，共 40 次 | 特定任务集合上数据、目标和架构的消融 |\n| 模型规模 | Tiny 10M、Small 27M、Base 93M | UR5/WidowX 各一个语言任务，每机器人 10 次 | 有限任务的规模趋势，不是普适 scaling law |\n| 泛化类型 | WidowX 新物体/环境/技能 | 每类型两任务，共 20 次 | 不同分布变化的难度差异 |\n\nRT-2-X 的 WidowX 数字引用已有工作 [7]，RT-1 Robot 由 RT-2-X 作者协助评估；UR5 未报告 RT-2-X。不能将图中缺失项视作零成功率。\n\n### 六个微调域的接口与成功标准\n\n| 任务 | 输入 / 控制变化 | 示范与测试细节 |\n|---|---|---|\n| Berkeley Insertion | 侧视图像 + 末端 twist + 力/力矩；5 Hz twist 指令，1000 Hz 底层阻抗控制 | 100 条 FMB 示范；预抓 peg 插入 1.5 mm 容差槽；20 次随机板位置 |\n| Stanford Coffee | 咖啡胶囊精确放入咖啡机；10 Hz 末端增量控制 | 118 条示范；4 色胶囊各 5 次。附录相机表述“3rd-person wrist”有歧义，不擅自确认视角 |\n| CMU Baking | 前方第三视角；15 Hz 末端增量控制 | 120 条示范；拿面包放入烤箱并关门；4 个新物体×5 个位置 |\n| Berkeley Pick-Up | 腕部图像 + 本体感觉；关节位置控制 | 100 次各类物体抓取示范；黄色方块 20 次 |\n| Berkeley Coke | 未见过的 ViperX；第三视角 + 腕部，5 Hz 末端增量 | 115 条示范，不同罐子位置；Table I 将其纳入 20 次/域口径 |\n| Berkeley Bimanual | 双 ViperX / ALOHA，左右腕部相机；14 维关节/夹爪 | 右手抓笔、左手拔盖；预测 64 步、执行 12 步再规划；Appendix F 报告 10 次，和 Table I 的 20 次不一致 |\n\n[评测设计依据](#/paper/octo?evidence=ev-octo-protocol) · [微调结果及次数冲突](#/paper/octo?evidence=ev-octo-finetuning)\n\n以上控制频率是对应任务设置，不能作为 Octo 全模型通用运行速度。论文未给所有场景一致的随机种子、置信区间和独立重训统计；小试验数使百分点差异的稳定性需要谨慎解读。\n\n## 实验结果与分析\n\n### 微调：整套方案的收益\n\nTable I（文件第 7 页）的六域、三方法成功率见本页实验图的“六域目标机器人微调”；切换任务可比较同条件下的方法。逐项数值由该结构化实验记录维护。\n\nOcto 六项均领先；按原表报告的整数均值，相对从零训练为 **+52 个百分点**。按展示的六项成功率重算，算术平均是 72.5%，原表写 72%；这里保留两种口径，不猜测作者具体的取整规则，也不按有争议的试验数重新加权。基线同时存在网络与动作目标差异，因此该表证明整套预训练与适配方案有效，不能独立证明某个模块带来全部增益。[微调证据](#/paper/octo?evidence=ev-octo-finetuning)\n\n### 零样本：覆盖范围与泛化类型\n\n官方项目页 Results 给出的 Figure 5 对应数值：\n\n官方项目的跨平台比较见[跨机器人直接评估图](#/paper/octo?mode=overview&experiment=octo-platforms)；RT-2-X 在 UR5 上缺少报告值，图中保持缺失，不记为零。\n\nOcto 超过 RT-1-X，但模型规模与数据量也增加；在两个有 RT-2-X 结果的平台上接近其成功率，并不意味着具有 RT-2-X 的全部语义迁移能力。正文“29% higher”不明确说明百分比口径；不将其再包装为统一相对增益。\n\nTable VII（文件第 17 页）更直接展示边界：\n\n各组均值及两项任务的成绩见[分布内与分布外结果图](#/paper/octo?mode=overview&experiment=octo-generalization)；每组换了具体任务，不作为单变量因果消融。\n\n[泛化分解证据](#/paper/octo?evidence=ev-octo-generalization)。这四组更换了具体任务，不能把跨组差值解读为固定任务、仅改变一个环境因素的因果效应。\n\n“广泛泛化”应拆成可见的这四类；新环境从 85% 降到 40%，不能只说“略降”。新技能几乎失败，说明策略并未从多样预训练自动获得任意技能组合能力。\n\n### 消融：动作目标、数据与架构\n\nTable II / VI，Octo-Small，WidowX 四任务 40 次：\n\n逐项成功率由[动作目标、数据与架构消融图](#/paper/octo?mode=overview&experiment=octo-ablation)维护；比较同一组任务中的完整配方、数据混合、动作目标与图像骨干。图中数值采用原表报告精度，差值应从所选配置计算。\n\n[消融表及支持范围](#/paper/octo?evidence=ev-octo-ablation)。表中差值按原表整数计算；40 次测试对应 2.5 个百分点的计数步长，83% 等汇总数含取整，不能解读为精确到 1 个百分点的估计。\n\n作者观察 MSE 策略运动缓慢、犹豫，离散动作更果断但抓取精度差；多峰连续生成是合理解释，但仅凭这几项结果不能排除训练配置和优化难度的影响。ResNet 在小数据从零训练中反而更好，故“ViT 更优”限于本文大数据预训练设置。\n\nFigure 6 显示 Tiny→Small→Base 性能随规模上升，但每机器人只有一个任务、10 次测试。本结果支持继续探索规模，不足以拟合可靠的计算/性能规律。\n\n### 负结果与工程取舍\n\nAppendix E（文件第 15 页）：\n\n- 一帧额外历史有效，继续延长未观察到收益；不推出其他长时依赖任务也不需要历史。\n- action chunking 改善动作连贯性；temporal ensembling 在测试中未优于 receding-horizon。\n- 16×16 patch 优于 32×32，token 数增至 4 倍，有计算代价。\n- shuffle buffer 从小规模改善到最多 500k，并在解码图像前跨轨迹混合；每轨迹最多采 100 步，避免长轨迹挤占缓冲区。\n- 相对夹爪表示略提高抓取率，却减少失败后的重试，最终选择绝对开/关表示。不能只报告抓取率而忽略完整任务成功。\n- 加本体感觉有时更差，作者提出 causal confusion 假设；这不是经干预实验确证的因果机制。\n- 更大 T5 或微调末两层未改善语言控制；冻结 T5-base 最好。语言数据不丰富是作者解释，不是已被单独验证的原因。\n\n## 局限性与讨论\n\n### 已展示能力与外推边界\n\n**作者指出的限制**：腕部相机并不总能提供收益，部分微调只用第三视角更好；语言条件和目标图像条件存在差距。腕部与语言在数据中的覆盖不足是可能原因。训练仅使用示范，未展示利用在线或次优交互持续改善；评估集中于单臂与双臂操作，没有证明导航或移动操作的通用性。\n\n**从实验可得的范围**：小目标域数据可成功微调，但这不是零数据迁移；零样本任务主要取自预训练分布。Table VII 新技能仅 5%，外推到陌生技能需要额外数据或机制。本文不报告持久记忆、在线参数更新、RL post-training 或 world-model 规划，不应因包含历史窗口就归为这些能力。\n\n### 原文疑点与不可比项\n\n| 问题 | 当前处理 | 影响 |\n|---|---|---|\n| Table I 每域 20 次；Appendix F 双臂 10 次 | 同时保留，未向作者确认 | 不推算统一加权成功率或双臂置信区间 |\n| Table I 均值 72%；按六项重算 72.5% | 原表与重算分列说明，不断言取整算法 | +52 个百分点是原表整数均值口径 |\n| Coffee 的“3rd-person wrist”相机措辞 | 保留歧义 | 不据此配置真实相机接口 |\n| RT-2-X 的部分结果来自引用/协作评测 | 明示来源差异，缺项记为未报告 | 不当作全部同场、同数据、同预算比较 |\n| 当前代码 README 为 v1.5；论文为 arXiv v2 | 版本分别记录 | 不把后续修复、默认参数追溯为论文实验 |\n\n### 复用条件与后续阅读\n\n**复用风险**：新机器人动作坐标、旋转表示、控制尺度和夹爪方向必须核对；模型输出数组不能直接当安全控制指令。论文的可微调结构不替代低层控制器与机器人接口适配。\n\n进一步阅读优先核对 Appendix E 的失败经验、Appendix F 的执行协议，以及目标数据集的坐标和归一化规范。面向 VLA、RL 后训练与长时任务的研究建议保存在独立的个人分析字段，均未作为本文实验结论。\n\n## 附录\n\n### 材料范围与版本\n\n本次仅重组已保存笔记，未重新核验原文或运行实验。原笔记记录的材料包括 arXiv v2、官方项目页及固定提交的代码阅读；此前补充记录曾回看文件第 4、5、7、8、17 页。以下分析、来源与未决疑点沿用这些既有材料。\n\n采用版本：arXiv **2405.12213v2，2024-05-26**，完整 PDF 17 页（含参考文献与附录）。机构：UC Berkeley、Stanford、Carnegie Mellon、Google DeepMind。正式发表信息据官方项目页：RSS 2024。作者列表按本版本 PDF 首页记录；它比当前项目网页多列 Ria Doshi。\n\n[官方 PDF](https://arxiv.org/pdf/2405.12213v2) · [arXiv v2](https://arxiv.org/abs/2405.12213v2) · [官方项目](https://octo-models.github.io/) · [官方代码](https://github.com/octo-models/octo) · [模型档案](#/entities/model-octo-policy) · [VLA 专题](#/topic/topic-vla)\n\n### 研究资源、版本与复核条件\n\n原文以本地 v2 PDF 为准，17 页，SHA-256 `73bff297cfafe523319162124e6b7f96919c0930e0a380f307255c4c7464ac93`。文件页 1–8 是正文，8–13 含参考文献，14–17 为作者贡献、使用示例、数据混合、超参数、经验与任务协议。它已附加到同一论文记录，可在“原文与全文索引”及并排阅读中使用。以下链接使用 PDF 文件页序（从 1 开始），不是推断的印刷页码。\n\n官方项目页展示模型结构、数据混合、实验设置与结果表，连接 GitHub、Colab 和 Hugging Face。网页视频缩略图不构成成功率证据；本笔记的结果依据论文表格和网页 Results 数值，不依据未逐段观看的视频推断鲁棒性。\n\n#### 从论文机制到官方实现\n\n固定读取提交 [`241fb3514b7c40957a86d869fecb7c7fc353f540`](https://github.com/octo-models/octo/tree/241fb3514b7c40957a86d869fecb7c7fc353f540)，读取日期 2026-09-23。这是当前官方实现快照；README 已包含 v1.5 更新，不能直接等同于论文 v2 实验版本。\n\n| 数据流位置 | 固定源码 | 核对到的行为及含义 |\n|---|---|---|\n| 观测 → 主干 | [OctoModel.sample_actions，174 行起](https://github.com/octo-models/octo/blob/241fb3514b7c40957a86d869fecb7c7fc353f540/octo/model/octo_model.py#L174) | 观测 shape 为 batch×window×…，读取 timestep_pad_mask，先调用一次 run_transformer；开始轨迹时需屏蔽不存在的历史帧 |\n| 主干 → 动作块 | [DiffusionActionHead，386 行起](https://github.com/octo-models/octo/blob/241fb3514b7c40957a86d869fecb7c7fc353f540/octo/model/components/action_heads.py#L386) | 噪声动作按 horizon×action_dim 展平，20 步 cosine 去噪；loss 对 padding 做 mask，预测只返回历史窗口最后时刻的未来动作块 |\n| 动作 → 机器人尺度 | [sample_actions，221 行起](https://github.com/octo-models/octo/blob/241fb3514b7c40957a86d869fecb7c7fc353f540/octo/model/octo_model.py#L221) | 提供统计量时执行 mean/std 或 p01/p99 逆归一化，并保留 mask 排除的维度；不提供统计量不能假定输出就是硬件动作单位 |\n| 目标域微调 | [finetune_config.py](https://github.com/octo-models/octo/blob/241fb3514b7c40957a86d869fecb7c7fc353f540/scripts/configs/finetune_config.py) | full 模式 frozen_keys=None；另有 head_only/head_mlp_only。当前示例 50k steps、batch 256、window_size=1、action_horizon=4；这些默认值不覆盖论文报告的 2 帧预训练历史 |\n\n当前 README 的 v1.5 更新包括逐时间步重复语言 token、语言改写增强，以及 diffusion dropout、attention mask 和增强随机种子的修复。它们不能追溯归入原论文实验。当前代码 LICENSE 为 MIT（需保留版权和许可）；本次没有单独核对每个权重和 OXE 子数据集的许可证，不将 MIT 自动扩展到权重和数据。\n\nREADME FAQ 说明预训练动作块为 4 步；真实机器人执行可以取首步或多个动作。与此相对，论文双臂任务重新训练的动作 head 使用 64 步预测、12 步执行。两者分别是通用模型说明与具体下游设置，不是互相矛盾的唯一常数。\n\n\n#### 资源与复现边界\n\n- 论文发布 Small / Base 权重、JAX 预训练与微调代码、OXE 数据加载工具。权重与实际数据要分别获取；代码公开不代表所有数据可以任意再分发。\n- 固定代码快照只支持静态接口分析，未安装训练环境、下载权重与全量数据，也未运行机器人或复现成功率。\n- 推荐从离线样例检查 shape、history mask、动作逆归一化、chunk 执行开始，再进行目标域训练。训练和部署版本、数据统计量、控制器及评测初始条件都需固定。\n- v2 PDF 与当前项目作者名单存在差异，按采用 PDF 版本保留 Ria Doshi；Table I 与 Appendix F 双臂试验次数冲突，未向作者确认。当前代码不宣称就是 2024 论文实验使用的提交。\n\n### 主张—证据—原文导航\n\n| 要回查的主张 | 证据记录 | 本地原文 | 阅读重点 |\n|---|---|---|---|\n| 任务与观测如何进入策略 | [查看证据](#/paper/octo?evidence=ev-octo-method) | [§III-A / Figure 2](https://arxiv.org/pdf/2405.12213v2#page=4) | readout 只读；接口可扩展不表示主干冻结 |\n| 扩散目标与全模型微调 | [查看证据](#/paper/octo?evidence=ev-octo-training) | [§III-C/D](https://arxiv.org/pdf/2405.12213v2#page=5) | 昂贵主干一次前向；轻量 head 多步去噪 |\n| 数据筛选与混合 | [查看证据](#/paper/octo?evidence=ev-octo-data) | [§III-B；Table III 见文件 14 页](https://arxiv.org/pdf/2405.12213v2#page=4) | batch 权重与原始轨迹比例分开 |\n| 评测问题与新接口 | [查看证据](#/paper/octo?evidence=ev-octo-protocol) | [§IV Evaluation setups](https://arxiv.org/pdf/2405.12213v2#page=5) | 开箱接口匹配；新接口用目标域数据适配 |\n| 六域微调 | [查看证据](#/paper/octo?evidence=ev-octo-finetuning) | [Table I；Appendix F 见文件 17 页](https://arxiv.org/pdf/2405.12213v2#page=7) | 原表均值、重算均值和试验数疑点 |\n| 消融结论 | [查看证据](#/paper/octo?evidence=ev-octo-ablation) | [Table II；Table VI 见文件 17 页](https://arxiv.org/pdf/2405.12213v2#page=7) | 40 次试验、条件混合与单任务反例 |\n| 模态覆盖与作者讨论 | [查看证据](#/paper/octo?evidence=ev-octo-limitations) | [§V](https://arxiv.org/pdf/2405.12213v2#page=8) | 27% 腕部 / 56% 语言；原因尚属解释 |\n| 历史与动作块 | [查看证据](#/paper/octo?evidence=ev-octo-history-p15) | [Appendix E](https://arxiv.org/pdf/2405.12213v2#page=15) | 仅限所测任务的负结果 |\n| 夹爪语义与重试 | [查看证据](#/paper/octo?evidence=ev-octo-gripper-p15) | [Appendix E](https://arxiv.org/pdf/2405.12213v2#page=15) | 抓取率与最终任务成功率不同 |\n| 零样本泛化分解 | [查看证据](#/paper/octo?evidence=ev-octo-generalization) | [Table VII](https://arxiv.org/pdf/2405.12213v2#page=17) | 任务组不同，不是单因素环境消融 |\n\n补充页：[文件第 14 页：数据采样与超参数](https://arxiv.org/pdf/2405.12213v2#page=14) · [文件第 16 页：目标域任务协议](https://arxiv.org/pdf/2405.12213v2#page=16)。论文证据与代码静态观察不能替代实际运行证据。\n\n### 叙述结构与关键措辞\n\nIntroduction 先从逐任务采集成本引出跨机器人共享经验，再指出固定接口、缺乏有效微调与封闭资源三个缺口，随后用模块化 token 接口承接设计。实验按开箱控制、少数据适配、设计消融逐层支撑主张。这种组织把“通用”转成具体可检验的能力维度。\n\n“Can wholly retain the pretrained weights”指不必重置主干初始化，不是训练期间保持权重不变。“Out-of-the-box”需和预训练覆盖的机器人/任务同时理解。“52%”在 Table I 报告均值的比较中宜表达为约 52 个百分点；72.5% 与原表 72% 的区别保留，取整方式未知；“first”“largest”应保留发表时点。Discussion 将腕部与语言不足归于数据覆盖，是合理假说，但论文未提供只改变覆盖比例的因果消融。\n\n### Abstract｜完整双语\n\n**English Original**\n\nLarge policies pretrained on diverse robot datasets have the potential to transform robotic learning: instead of training new policies from scratch, such generalist robot policies may be finetuned with only a little in-domain data, yet generalize broadly. However, to be widely applicable across a range of robotic learning scenarios, environments, and tasks, such policies need to handle diverse sensors and action spaces, accommodate a variety of commonly used robotic platforms, and finetune readily and efficiently to new domains. In this work, we aim to lay the groundwork for developing open-source, widely applicable, generalist policies for robotic manipulation. As a first step, we introduce Octo, a large transformer-based policy trained on 800k trajectories from the Open X-Embodiment dataset, the largest robot manipulation dataset to date. It can be instructed via language commands or goal images and can be effectively finetuned to robot setups with new sensory inputs and action spaces within a few hours on standard consumer GPUs. In experiments across 9 robotic platforms, we demonstrate that Octo serves as a versatile policy initialization that can be effectively finetuned to new observation and action spaces. We also perform detailed ablations of design decisions for the Octo model, from architecture to training data, to guide future research on building generalist robot models.\n\n**中文翻译**\n\n在多样机器人数据集上预训练的大型策略有潜力改变机器人学习：不必从零训练新策略，这类通用机器人策略或许只需少量域内数据就能微调，并获得广泛泛化。然而，要广泛适用于不同机器人学习场景、环境与任务，这类策略必须处理多样的传感器和动作空间，适应多种常用机器人平台，并能方便、高效地微调到新领域。本工作旨在为开发开源、广泛适用的通用机器人操作策略奠定基础。作为第一步，我们提出 Octo：一个大型 Transformer 策略，在迄今最大的机器人操作数据集 Open X-Embodiment 的 80 万条轨迹上训练。它可以通过语言指令或目标图像接受任务，并可在标准消费级 GPU 上数小时内有效微调到具有新感知输入和动作空间的机器人设置。在涵盖 9 个机器人平台的实验中，我们展示 Octo 可作为通用的策略初始化，有效微调到新的观测和动作空间。我们还对 Octo 从架构到训练数据的设计选择进行了详细消融，以指导未来通用机器人模型的研究。\n\n### Introduction｜完整双语\n\n**English Original**\n\nThe common approach for robotic learning is to train policies on datasets collected for the specific robot and task at hand. Learning from scratch in this way requires significant data collection effort for each task, and the resulting policies usually exhibit only narrow generalization. In principle, collected experience from other robots and tasks offers a possible solution, exposing models to a diverse set of robotic control problems that may improve generalization and performance on downstream tasks. However, even as general-purpose models become ubiquitous in natural language [68, 88]) and computer vision [76, 44], it has proven challenging to build the analogous “general-purpose robot model” that can control many robots for many tasks. Training a unified control policy in robotics presents unique challenges, requiring handling different robot embodiments, sensor setups, action spaces, task specifications, environments, and compute budgets.\n\nTowards this direction, several works have proposed robotic foundation models that directly map robot observations to actions and provide zero-shot or few-shot generalization to new domains and robots. We broadly refer to these models as “generalist robot policies” (GRPs), emphasizing their ability to perform low-level visuomotor control across tasks, environments, and robotic systems [75, 9, 23, 103, 10, 81, 1, 91, 35, 94, 45]. For example, the GNM model [80] generalizes across different robotic navigation scenarios, the RoboCat model [9] handles different robot embodiments for goal-conditioned tasks, and the RT-X model [67] performs language-conditioned manipulation across five robot embodiments. Although these models represent significant steps toward a true “general-purpose robot model,” they have been limited in multiple important aspects: they typically constrain downstream users to a pre-defined and often restrictive set of input observations, e.g., a single camera stream; they lack support for effective finetuning to new domains; and importantly, the largest of these models are not available to the general public.\n\nWe design a system for pretraining generalist robot policies more suitable for the diversity of interfaces in downstream robotic applications. The core of our model is a transformer architecture that maps arbitrary input tokens (created from observations and tasks) to output tokens (then decoded into actions), which can be trained on a diverse dataset of robots and tasks. With no additional training, this policy can accept different camera configurations (e.g., workspace or wrist cameras), can control different robots, and can be guided via either language commands or goal images — all by simply changing which tokens are fed into the model. Most importantly, the model can be adapted to new robot setups with new sensory inputs, action spaces, or morphologies by adding appropriate adapters and finetuning with a small target domain dataset and an accessible compute budget.\n\nOur primary contribution is Octo, a transformer-based policy pretrained on the largest robot manipulation dataset to date: 800k robot demonstrations from the Open X-Embodiment dataset [67]. Octo is the first GRP that can be effectively finetuned to new observations and action spaces and the first generalist robot manipulation policy that is fully open-source, including the training pipeline, model checkpoints, and data. Finally, while the individual components that comprise Octo — a transformer backbone, support for both language and goal image specification, and a diffusion head to model expressive action distributions — have been discussed in prior work, the particular combination of these components into a powerful generalist robot policy is unique and novel.\n\nWe demonstrate through extensive experiments on 9 robots across 4 institutions that our combined system leads to state-of-the-art performance for out-of-the-box multi-robot control for single and dual-arm manipulation tasks and that Octo can be used as an effective initialization for finetuning to unseen setups with new observation and action spaces. In the process, we carefully study the effect of different design decisions when pretraining GRPs; we evaluate how the choice of data distribution, model architecture, and policy formulation affects the quality of the pretrained GRP. Our evaluation highlights the utility of scale and flexibility: our best models are those trained on the widest data mixtures, with the least restrictive inductive biases, and with policy objectives that can fit the diversity of behaviors in the pretraining data.\n\nAlong with this paper, we release all resources required to train, use, reproduce, and finetune an Octo model. We provide pretrained Octo model checkpoints with 27M and 93M parameters that, out of the box, support multiple RGB camera inputs as well as both language and goal image task specification. We also provide scripts for finetuning these models on new domains, as well as our complete pretraining pipeline, including optimized data loaders, transformer implementations for multimodal inputs, and tools to monitor training progress.\n\n**中文翻译**\n\n机器人学习的常见做法是在针对当前特定机器人和任务收集的数据集上训练策略。这种从零学习的方式要求为每项任务投入大量数据采集工作，而且所得策略通常只具备狭窄的泛化能力。原则上，其他机器人和任务积累的经验提供了一种可能的解决方案：让模型接触多样化机器人控制问题，或许能改善下游任务的泛化和性能。然而，尽管通用模型已普遍用于自然语言 [68, 88] 和计算机视觉 [76, 44]，构建能够控制多种机器人执行多种任务的对应“通用机器人模型”仍然困难。在机器人领域训练统一控制策略面临独特挑战：需要处理不同机器人本体、传感器设置、动作空间、任务描述、环境和计算预算。\n\n沿着这一方向，多项工作提出了直接将机器人观测映射为动作的机器人基础模型，并对新领域和机器人提供零样本或少样本泛化。我们将这些模型统称为“通用机器人策略”（GRP），强调其跨任务、环境和机器人系统进行低层视觉运动控制的能力 [75, 9, 23, 103, 10, 81, 1, 91, 35, 94, 45]。例如，GNM 模型 [80] 可泛化到不同机器人导航场景，RoboCat 模型 [9] 处理目标条件任务中的不同机器人本体，RT-X 模型 [67] 在五种机器人本体上执行语言条件操作。尽管这些模型是走向真正“通用机器人模型”的重要进展，它们在几个重要方面仍受限制：通常要求下游用户使用预先定义且往往受限的输入观测，例如单路相机；缺少对新领域有效微调的支持；并且，最大规模的这类模型尚未向公众开放。\n\n我们设计了一套通用机器人策略预训练系统，更适合下游机器人应用中多样化的接口。模型核心是 Transformer 架构，将任意输入 token（由观测和任务生成）映射为输出 token（再解码为动作），可在多样的机器人与任务数据集上训练。无需额外训练，该策略即可接受不同相机配置（如工作空间或腕部相机）、控制不同机器人，并通过语言指令或目标图像引导——只需改变送入模型的 token。更重要的是，通过添加合适的适配器，使用小规模目标域数据集和可承担的计算预算进行微调，模型可以适配具有新感知输入、动作空间或形态的机器人设置。\n\n我们的主要贡献是 Octo，一个基于 Transformer 的策略，在迄今最大的机器人操作数据集——Open X-Embodiment 的 80 万条机器人示范——上预训练 [67]。Octo 是第一个能够有效微调到新观测和动作空间的 GRP，也是第一个完全开源的通用机器人操作策略，包括训练流程、模型检查点和数据。最后，虽然构成 Octo 的各个组件——Transformer 主干、同时支持语言与目标图像描述、以及表达丰富动作分布的 diffusion head——已在先前工作中讨论，将这些组件特定地组合成强大的通用机器人策略是独特且新颖的。\n\n通过四家机构、九种机器人的广泛实验，我们展示组合系统在单臂和双臂操作的开箱多机器人控制上达到了最先进性能，且 Octo 可作为有效初始化，微调到具有新观测和动作空间的未见设置。在此过程中，我们仔细研究了预训练 GRP 时不同设计选择的影响，评估数据分布、模型架构和策略形式如何影响预训练 GRP 的质量。评估突出了规模与灵活性的价值：最好的模型使用最广的数据混合、限制最少的归纳偏置，以及能够拟合预训练数据中多样行为的策略目标。\n\n随本文一起，我们发布训练、使用、复现和微调 Octo 所需的全部资源。我们提供 2700 万和 9300 万参数的预训练 Octo 模型检查点，开箱支持多路 RGB 相机输入，以及语言和目标图像两类任务描述。我们也提供将这些模型微调到新领域的脚本，以及完整预训练流程，包括优化的数据加载器、多模态输入 Transformer 实现和监控训练进度的工具。\n\n### Conclusion 对应终章｜完整双语\n\n本版本无独立 Conclusion；以下完整收录 §V **Discussion and Future Work**（文件第 8 页），作为对应终章。\n\n**English Original**\n\nWe introduced Octo, a large transformer-based policy pretrained on the largest robot manipulation dataset to date, 800k robot trajectories. We demonstrated that Octo can solve a variety of tasks out-of-the-box and showed how Octo’s compositional design enables finetuning to new inputs and action spaces, making Octo a versatile initialization for a wide range of robotic control problems. Apart from the model itself, we have released our full training and finetuning code, alongside tools that make it easier to train on large robot datasets.\n\nWhile Octo achieves strong performance in both zero-shot and finetuning evaluations, we find that the current model still has several short-comings, which we attribute in large parts to characteristics of the training data. First, we found that the current Octo model struggles with adequately processing wrist camera information. Often finetuning results were stronger when using only a third person camera instead of combining third person and wrist camera. Additionally, we notice a large difference between language-conditioned policy performance and goal-conditioned policy performance. In both cases, a lack of the respective modalities in the training data is the likely reason: only 27% of the data contains wrist camera information and only 56% of the pretraining data contains language annotations.\n\nExpanding the data used to train Octo is a natural avenue of improvement. Since the Open X-Embodiment dataset is comprised of optimal robot demonstrations, the current model trains via imitation; future work may consider learning from sub-optimal or online interaction data that require alternative objectives. Further, while we trained and evaluated Octo exclusively on single and dual-arm manipulators; expanding to a wider set of robots that perform navigation or mobile manipulation would be an direction of high opportunity.\n\nWhile Octo represents a step towards building generalist robot policies that work out-of-the-box on diverse robot setups, there remains work to improve the model, including better language conditioning, improved support for wrist cameras, and incorporating data beyond optimal demonstrations. We hope that Octo offers a simple launchpad for researchers and practitioners to access larger robotic datasets and leverage pretrained robotics models for efficient learning of new tasks and broad generalization.\n\n**中文翻译**\n\n我们介绍了 Octo，一个大型 Transformer 策略，在迄今最大的机器人操作数据集——80 万条机器人轨迹——上预训练。我们展示了 Octo 可开箱解决多种任务，并说明其可组合设计如何支持对新输入和动作空间进行微调，使 Octo 成为广泛机器人控制问题的通用初始化。除模型本身外，我们还发布了完整训练和微调代码，以及简化大型机器人数据集训练的工具。\n\n尽管 Octo 在零样本和微调评估中表现强劲，我们发现当前模型仍存在若干不足，并认为这些不足很大程度上来自训练数据的特征。首先，当前 Octo 模型难以充分处理腕部相机信息。微调时，仅使用第三视角相机的结果往往优于同时使用第三视角和腕部相机。此外，语言条件策略和目标条件策略的表现存在较大差距。在这两种情况下，训练数据缺少相应模态可能是原因：仅 27% 的数据包含腕部相机信息，仅 56% 的预训练数据具有语言标注。\n\n扩展用于训练 Octo 的数据是一条自然的改进途径。由于 Open X-Embodiment 数据集由最优机器人示范组成，当前模型通过模仿学习训练；未来工作可考虑从次优或在线交互数据学习，而这需要其他目标。此外，我们仅在单臂和双臂机械臂上训练和评估 Octo；扩展到执行导航或移动操作的更广泛机器人将是很有潜力的方向。\n\n虽然 Octo 朝着构建可在多样机器人设置中开箱工作的通用机器人策略迈出了一步，仍需进一步改善模型，包括更好的语言条件控制、对腕部相机更好的支持，以及纳入最优示范之外的数据。我们希望 Octo 能为研究者和实践者提供一个简单起点，使其接触更大规模机器人数据集，并利用预训练机器人模型高效学习新任务、实现广泛泛化。\n",
   "arxiv": "2405.12213",
   "version": "v2",
   "updated": "2026-09-23",
@@ -130,6 +130,413 @@
     ],
     "platform": [
       "ev-octo-protocol"
+    ]
+  },
+  "visuals": {
+    "guide": "从共享策略主干沿输入、readout、扩散动作头到目标域微调，再切换到零样本和消融结果。",
+    "resources": [
+      {
+        "label": "论文摘要",
+        "url": "https://arxiv.org/abs/2405.12213v2",
+        "kind": "abstract"
+      },
+      {
+        "label": "论文 PDF",
+        "url": "https://arxiv.org/pdf/2405.12213v2",
+        "kind": "pdf"
+      },
+      {
+        "label": "官方项目",
+        "url": "https://octo-models.github.io/",
+        "kind": "project"
+      },
+      {
+        "label": "官方代码",
+        "url": "https://github.com/octo-models/octo",
+        "kind": "code"
+      }
+    ],
+    "method": {
+      "title": "共享 Transformer → readout → 条件扩散动作头",
+      "steps": [
+        {
+          "id": "inputs",
+          "label": "输入与任务条件",
+          "description": "短观测历史、相机输入与语言或目标图像；输入模态可缺失或扩展。",
+          "section": "方法",
+          "source": {
+            "url": "https://arxiv.org/pdf/2405.12213v2#page=4",
+            "locator": "Fig.2 / §III, PDF pp.4–5"
+          },
+          "updates": []
+        },
+        {
+          "id": "tokenizers",
+          "label": "模态 tokenizer",
+          "description": "各输入编码为token并标注所属模态与时刻；冻结T5文字编码器，图像模块随策略训练。",
+          "section": "方法",
+          "source": {
+            "url": "https://arxiv.org/pdf/2405.12213v2#page=4",
+            "locator": "Fig.2 / §III, PDF pp.4–5"
+          },
+          "updates": [
+            "pretrain",
+            "finetune"
+          ]
+        },
+        {
+          "id": "transformer",
+          "label": "共享 Transformer",
+          "description": "共享主干结合任务与观测，注意力掩码约束模态和时间信息流。",
+          "section": "方法",
+          "source": {
+            "url": "https://arxiv.org/pdf/2405.12213v2#page=4",
+            "locator": "Fig.2 / §III, PDF pp.4–5"
+          },
+          "updates": [
+            "pretrain",
+            "finetune"
+          ]
+        },
+        {
+          "id": "readout",
+          "label": "动作 readout",
+          "description": "学习到的readout token提取供动作头使用的条件表示；不把其误作独立高层规划器。",
+          "section": "方法",
+          "source": {
+            "url": "https://arxiv.org/pdf/2405.12213v2#page=4",
+            "locator": "Fig.2 / §III, PDF pp.4–5"
+          },
+          "updates": [
+            "pretrain",
+            "finetune"
+          ]
+        },
+        {
+          "id": "diffusion",
+          "label": "扩散动作头",
+          "description": "从动作噪声逐步生成连续动作块；每轮只需计算一次共享主干表示。",
+          "section": "方法",
+          "source": {
+            "url": "https://arxiv.org/pdf/2405.12213v2#page=5",
+            "locator": "Fig.2 / §III, PDF pp.4–5"
+          },
+          "updates": [
+            "pretrain",
+            "finetune"
+          ]
+        },
+        {
+          "id": "execution",
+          "label": "闭环执行",
+          "description": "反归一化后执行部分预测动作，再观测重算；下图专指双臂域64/12配置。",
+          "section": "方法",
+          "source": {
+            "url": "https://arxiv.org/pdf/2405.12213v2#page=17",
+            "locator": "Appendix F, PDF p.17"
+          },
+          "updates": []
+        }
+      ],
+      "modes": [
+        {
+          "id": "pretrain",
+          "label": "跨机器人预训练",
+          "description": "从约 25 个 OXE 数据集学习可迁移表示。"
+        },
+        {
+          "id": "finetune",
+          "label": "目标域微调",
+          "description": "用少量目标机器人演示更新 readout/策略。"
+        },
+        {
+          "id": "inference",
+          "label": "闭环推理",
+          "description": "按预测块和执行窗口连续控制。"
+        }
+      ],
+      "timeline": {
+        "prediction": 64,
+        "execution": 12,
+        "description": "仅 Berkeley Bimanual 目标域：预测 64 步、执行 12 步，再获取新观测。来自 Appendix F，PDF p.17；通用预训练默认 chunk=4，勿混作同一配置。"
+      }
+    },
+    "experiments": [
+      {
+        "id": "octo-finetune",
+        "label": "六域目标机器人微调",
+        "version": "Octo v2",
+        "task": "Insertion / Coffee / Baking / Pickup / Coke / Bimanual",
+        "data": "OXE 预训练后目标域演示",
+        "adaptation": "目标域微调",
+        "metric": "成功率",
+        "unit": "%",
+        "trials": "Table I 20次/域；Appendix F 双臂10次，原文不一致",
+        "source": {
+          "url": "https://arxiv.org/pdf/2405.12213v2",
+          "locator": "Table I, PDF p. 7"
+        },
+        "rows": [
+          {
+            "label": "Octo · Insertion",
+            "method": "Octo",
+            "task": "Insertion",
+            "value": 70
+          },
+          {
+            "label": "Scratch · Insertion",
+            "method": "Scratch",
+            "task": "Insertion",
+            "value": 10
+          },
+          {
+            "label": "VC-1 · Insertion",
+            "method": "VC-1",
+            "task": "Insertion",
+            "value": 5
+          },
+          {
+            "label": "Octo · Coffee",
+            "method": "Octo",
+            "task": "Coffee",
+            "value": 75
+          },
+          {
+            "label": "Scratch · Coffee",
+            "method": "Scratch",
+            "task": "Coffee",
+            "value": 45
+          },
+          {
+            "label": "VC-1 · Coffee",
+            "method": "VC-1",
+            "task": "Coffee",
+            "value": 0
+          },
+          {
+            "label": "Octo · Baking",
+            "method": "Octo",
+            "task": "Baking",
+            "value": 50
+          },
+          {
+            "label": "Scratch · Baking",
+            "method": "Scratch",
+            "task": "Baking",
+            "value": 25
+          },
+          {
+            "label": "VC-1 · Baking",
+            "method": "VC-1",
+            "task": "Baking",
+            "value": 30
+          },
+          {
+            "label": "Octo · Pick-Up",
+            "method": "Octo",
+            "task": "Pick-Up",
+            "value": 60
+          },
+          {
+            "label": "Scratch · Pick-Up",
+            "method": "Scratch",
+            "task": "Pick-Up",
+            "value": 0
+          },
+          {
+            "label": "VC-1 · Pick-Up",
+            "method": "VC-1",
+            "task": "Pick-Up",
+            "value": 0
+          },
+          {
+            "label": "Octo · Coke",
+            "method": "Octo",
+            "task": "Coke",
+            "value": 100
+          },
+          {
+            "label": "Scratch · Coke",
+            "method": "Scratch",
+            "task": "Coke",
+            "value": 20
+          },
+          {
+            "label": "VC-1 · Coke",
+            "method": "VC-1",
+            "task": "Coke",
+            "value": 10
+          },
+          {
+            "label": "Octo · Bimanual",
+            "method": "Octo",
+            "task": "Bimanual",
+            "value": 80
+          },
+          {
+            "label": "Scratch · Bimanual",
+            "method": "Scratch",
+            "task": "Bimanual",
+            "value": 20
+          },
+          {
+            "label": "VC-1 · Bimanual",
+            "method": "VC-1",
+            "task": "Bimanual",
+            "value": 50
+          }
+        ]
+      },
+      {
+        "id": "octo-ablation",
+        "label": "动作目标与数据消融",
+        "version": "Octo v2",
+        "task": "四任务消融",
+        "data": "OXE/Bridge 等混合设置",
+        "adaptation": "消融",
+        "metric": "成功率",
+        "unit": "%",
+        "trials": "40 trials across 4 tasks",
+        "source": {
+          "url": "https://arxiv.org/pdf/2405.12213v2",
+          "locator": "Table II / VI, PDF pp.7,17"
+        },
+        "rows": [
+          {
+            "label": "完整 Octo-Small",
+            "value": 83
+          },
+          {
+            "label": "RT-X 11 数据集混合",
+            "value": 60
+          },
+          {
+            "label": "仅 Bridge",
+            "value": 43
+          },
+          {
+            "label": "离散动作分类",
+            "value": 18
+          },
+          {
+            "label": "连续 MSE 动作",
+            "value": 35
+          },
+          {
+            "label": "ResNet-50 + Transformer",
+            "value": 70
+          }
+        ]
+      },
+      {
+        "id": "octo-generalization",
+        "label": "不同分布泛化",
+        "version": "Octo v2 / Table VII",
+        "task": "分布内、新物体、新环境、新技能；各组任务不同",
+        "data": "预训练策略与指定泛化评估组",
+        "adaptation": "直接评估，不把不同任务差异当作单因素因果消融",
+        "metric": "成功率",
+        "unit": "%",
+        "trials": "各组任务和尝试配置见Appendix F；不合并成总样本率",
+        "source": {
+          "url": "https://arxiv.org/pdf/2405.12213v2#page=17",
+          "locator": "Table VII, PDF p.17"
+        },
+        "rows": [
+          {
+            "label": "分布内平均",
+            "value": 85,
+            "condition": "胡萝卜放盘80%；茄子放锅90%"
+          },
+          {
+            "label": "新物体平均",
+            "value": 80,
+            "condition": "面包放盘70%；勺子放手套90%"
+          },
+          {
+            "label": "新环境平均",
+            "value": 40,
+            "condition": "蘑菇放锅20%；勺子放布60%"
+          },
+          {
+            "label": "新技能平均",
+            "value": 5,
+            "condition": "翻倒杯子10%；方块插槽0%"
+          }
+        ]
+      },
+      {
+        "id": "octo-platforms",
+        "label": "跨机器人直接评估",
+        "version": "Octo v2 / 官方项目Fig.5对应数据",
+        "task": "WidowX / UR5 / RT-1 Robot",
+        "data": "各方法原有跨机器人预训练配置；数据量与模型规模不同",
+        "adaptation": "直接评估",
+        "metric": "成功率",
+        "unit": "%",
+        "trials": "此处项目结果未逐列给出次数；不反推",
+        "source": {
+          "url": "https://octo-models.github.io/",
+          "locator": "Results / Figure 5"
+        },
+        "rows": [
+          {
+            "label": "RT-1-X · WidowX",
+            "method": "RT-1-X",
+            "task": "WidowX",
+            "value": 20
+          },
+          {
+            "label": "RT-1-X · UR5",
+            "method": "RT-1-X",
+            "task": "UR5",
+            "value": 35
+          },
+          {
+            "label": "RT-1-X · RT-1 Robot",
+            "method": "RT-1-X",
+            "task": "RT-1 Robot",
+            "value": 60
+          },
+          {
+            "label": "RT-2-X · WidowX",
+            "method": "RT-2-X",
+            "task": "WidowX",
+            "value": 50
+          },
+          {
+            "label": "RT-2-X · UR5",
+            "method": "RT-2-X",
+            "task": "UR5",
+            "value": null,
+            "condition": "未报告，不是零"
+          },
+          {
+            "label": "RT-2-X · RT-1 Robot",
+            "method": "RT-2-X",
+            "task": "RT-1 Robot",
+            "value": 85
+          },
+          {
+            "label": "Octo · WidowX",
+            "method": "Octo",
+            "task": "WidowX",
+            "value": 50
+          },
+          {
+            "label": "Octo · UR5",
+            "method": "Octo",
+            "task": "UR5",
+            "value": 70
+          },
+          {
+            "label": "Octo · RT-1 Robot",
+            "method": "Octo",
+            "task": "RT-1 Robot",
+            "value": 80
+          }
+        ]
+      }
     ]
   }
 }

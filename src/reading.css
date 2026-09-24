@@ -1,0 +1,206 @@
+.reading-single {
+  display: block;
+}
+.source-link-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 20px;
+  align-items: center;
+  padding: 14px 18px;
+  background: #f3f6f4;
+  border-radius: 10px;
+  margin-bottom: 20px;
+}
+.source-link-strip h3,
+.source-link-strip p {
+  margin: 0;
+  font-size: 14px;
+}
+.source-link-strip p {
+  color: #65746c;
+}
+.reading-single > section[aria-label='并排阅读笔记'] {
+  max-width: 80ch;
+  margin-inline: auto;
+}
+.markdown [data-section] {
+  scroll-margin-top: 110px;
+}
+.reading-outline button[aria-current='location'],
+.mobile-note-outline button[aria-current='location'] {
+  color: #235d4a;
+  background: #e8f1eb;
+  border-left: 3px solid #448968;
+  font-weight: 650;
+}
+.mobile-note-outline {
+  display: none;
+}
+.pdf-reader {
+  min-width: 0;
+}
+.pdf-reading-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+  font-size: 13px;
+}
+.pdf-reading-controls label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.pdf-reading-controls input {
+  width: 135px;
+  min-width: 0;
+}
+.pdf-page-scroll {
+  overflow: auto;
+  max-width: 100%;
+  margin-top: 12px;
+}
+.pdf-page-surface {
+  position: relative;
+  margin-inline: auto;
+}
+.pdf-page-surface canvas {
+  display: block;
+  max-width: none !important;
+}
+.pdf-text-layer {
+  position: absolute;
+  inset: 0;
+  overflow: clip;
+  line-height: 1;
+  text-align: initial;
+  transform-origin: 0 0;
+  --min-font-size: 1;
+  --text-scale-factor: calc(var(--total-scale-factor) * var(--min-font-size));
+  --min-font-size-inv: calc(1 / var(--min-font-size));
+}
+.pdf-text-layer :is(span, br) {
+  color: transparent;
+  position: absolute;
+  white-space: pre;
+  cursor: text;
+  transform-origin: 0 0;
+  user-select: text;
+}
+.pdf-text-layer > :not(.markedContent),
+.pdf-text-layer .markedContent span:not(.markedContent) {
+  --font-height: 0;
+  --scale-x: 1;
+  --rotate: 0deg;
+  font-size: calc(var(--text-scale-factor) * var(--font-height));
+  transform: rotate(var(--rotate)) scaleX(var(--scale-x)) scale(var(--min-font-size-inv));
+}
+.pdf-text-layer .markedContent {
+  display: contents;
+}
+.pdf-text-layer ::selection {
+  background: #5b9bd580;
+}
+.pdf-text-layer .pdf-search-hit {
+  background: #f1cb5477;
+}
+.pdf-text-layer .pdf-search-current {
+  background: #f3a74aaa;
+  outline: 1px solid #a16800;
+}
+.reader-selected-quote {
+  margin: 12px;
+  border-left: 3px solid #6b9580;
+  padding: 10px;
+}
+.pdf-reader [role='alert'] a {
+  margin-left: 14px;
+}
+@media (max-width: 1100px) {
+  .mobile-note-outline {
+    display: block;
+    position: fixed;
+    z-index: 50;
+    right: 16px;
+    bottom: 20px;
+    width: min(330px, calc(100vw - 32px));
+    background: #fff;
+    border: 1px solid #d4ded8;
+    border-radius: 10px;
+    box-shadow: 0 6px 25px #18312622;
+  }
+  .mobile-note-outline summary {
+    padding: 12px 18px;
+    cursor: pointer;
+    font-weight: 600;
+  }
+  .mobile-note-outline nav {
+    max-height: 55vh;
+    overflow-y: auto;
+    padding: 0 8px 8px;
+  }
+  .mobile-note-outline button {
+    display: block;
+    width: 100%;
+    text-align: left;
+    border: 0;
+    background: transparent;
+    padding: 10px;
+    line-height: 1.4;
+  }
+  .reading-outline.note-toc {
+    display: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .markdown [data-section] {
+    scroll-behavior: auto;
+  }
+}
+.pdf-reader button:focus-visible,
+.mobile-note-outline summary:focus-visible,
+.mobile-note-outline button:focus-visible,
+.reading-outline button:focus-visible {
+  outline: 2px solid #386f59;
+  outline-offset: 3px;
+}
+@media (max-width: 700px) {
+  .reading-split > section {
+    overscroll-behavior: auto;
+  }
+  .pdf-reading-controls label {
+    flex-wrap: wrap;
+  }
+}
+
+.paper-appendix {
+  margin-top: 28px;
+  border-top: 1px solid #d9e1dc;
+  padding-top: 12px;
+}
+.paper-appendix > summary {
+  cursor: pointer;
+  color: #496153;
+  padding: 8px 0;
+}
+.paper-appendix > summary h2,
+.paper-appendix > summary h1 {
+  display: inline;
+  margin: 0;
+  border: 0;
+  font-size: 1.15rem;
+}
+.paper-appendix > summary::after {
+  content: '展开阅读';
+  font-size: 0.8rem;
+  margin-left: 14px;
+  color: #708176;
+}
+.paper-appendix[open] > summary::after {
+  content: '收起';
+}
+.paper-appendix > summary:focus-visible {
+  outline: 2px solid #386f59;
+  outline-offset: 3px;
+}
