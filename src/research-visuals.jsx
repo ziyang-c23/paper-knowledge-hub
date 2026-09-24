@@ -3,6 +3,7 @@ import './research-visuals.css';
 import { ControlCycle } from './control-cycle.jsx';
 import { ActionEncoding } from './action-encoding.jsx';
 import { sourceFreshness } from './lib/sources.mjs';
+import { OriginalMaterials, originalMedia } from './source-media.jsx';
 function SourceUpdate({ paper, derived }) {
   return ['stale', 'missing'].includes(sourceFreshness(paper, derived).status) ? (
     <p className="muted">此讲解采用的来源版本已变化，需重新核对。</p>
@@ -10,11 +11,18 @@ function SourceUpdate({ paper, derived }) {
 }
 
 export function ResearchVisuals({ paper }) {
-  if (!paper.visuals) return null;
+  if (
+    !paper.visuals &&
+    !originalMedia(paper, '方法').length &&
+    !originalMedia(paper, '实验结果与分析').length
+  )
+    return null;
   return (
     <div className="research-visuals" key={paper.id}>
-      {paper.visuals.method && <MethodExplorer paper={paper} method={paper.visuals.method} />}
-      {paper.visuals.experiments?.length > 0 && (
+      <OriginalMaterials paper={paper} section="方法" />
+      {paper.visuals?.method && <MethodExplorer paper={paper} method={paper.visuals.method} />}
+      <OriginalMaterials paper={paper} section="实验结果与分析" />
+      {paper.visuals?.experiments?.length > 0 && (
         <ExperimentExplorer paper={paper} groups={paper.visuals.experiments} />
       )}
     </div>

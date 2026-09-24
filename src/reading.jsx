@@ -5,6 +5,7 @@ import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import './reading.css';
+import { OriginalMaterials, originalMedia } from './source-media.jsx';
 const PdfViewer = lazy(() => import('./pdf-viewer.jsx'));
 
 // Work on rendered Markdown nodes, so headings inside code blocks never split a note.
@@ -43,10 +44,11 @@ function foldAppendix() {
     });
   };
 }
-function DefaultNoteMarkdown({ children, rehypePlugins = [] }) {
+function DefaultNoteMarkdown({ children, rehypePlugins = [], components = {} }) {
   return (
     <div className="markdown">
       <Markdown
+        components={components}
         remarkPlugins={[remarkGfm, remarkMath]}
         rehypePlugins={[rehypeKatex, ...rehypePlugins]}
       >
@@ -55,11 +57,43 @@ function DefaultNoteMarkdown({ children, rehypePlugins = [] }) {
     </div>
   );
 }
+// Insert media through the rendered heading tree; keep the canonical note unchanged.
+function insertOriginalMaterials(paper) {
+  return function originalMaterialsPlugin() {
+    return (tree) => {
+      const text = (node) =>
+        node.type === 'text' ? node.value : (node.children || []).map(text).join('');
+      const children = tree.children || [];
+      tree.children = children.flatMap((node) => {
+        const section = node.type === 'element' && node.tagName === 'h2' ? text(node).trim() : '';
+        if (!section || !originalMedia(paper, section).length) return [node];
+        return [
+          node,
+          {
+            type: 'element',
+            tagName: 'original-materials',
+            properties: { 'data-section-name': section },
+            children: [],
+          },
+        ];
+      });
+    };
+  };
+}
 export function PaperNote({ paper, Md = DefaultNoteMarkdown }) {
   if (!paper?.note?.trim()) return null;
   return (
     <div className="paper-note">
-      <Md rehypePlugins={[foldAppendix]}>{paper.note}</Md>
+      <Md
+        rehypePlugins={[insertOriginalMaterials(paper), foldAppendix]}
+        components={{
+          'original-materials': ({ node }) => (
+            <OriginalMaterials paper={paper} section={node.properties['data-section-name']} />
+          ),
+        }}
+      >
+        {paper.note}
+      </Md>
     </div>
   );
 }

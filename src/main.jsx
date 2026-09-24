@@ -150,7 +150,7 @@ function NoteImage({ src, alt }) {
     </span>
   );
 }
-function Md({ children, rehypePlugins = [] }) {
+function Md({ children, rehypePlugins = [], components = {} }) {
   return (
     <div className="markdown">
       <Markdown
@@ -161,6 +161,7 @@ function Md({ children, rehypePlugins = [] }) {
               {children}
             </a>
           ),
+          ...components,
         }}
         remarkPlugins={[remarkGfm, remarkMath]}
         rehypePlugins={[rehypeKatex, ...rehypePlugins]}
@@ -879,7 +880,15 @@ function SourceTrail({ paper }) {
       (item) => item.url && !canonical.some((source) => source.url === item.url),
     ),
   ];
-  const media = toItems(paper.media).filter((item) => item?.url);
+  // Only omit materials actually rendered above; keep other chapters and legacy media reachable.
+  const media = toItems(paper.media).filter(
+    (item) =>
+      item?.url &&
+      !(
+        ['方法', '实验结果与分析'].includes(item.section?.trim()) &&
+        ['figure', 'image', 'official-video', 'pdf-page'].includes(item.type)
+      ),
+  );
   const explanations = toItems(paper.explanations).filter((item) => item?.body);
   if (!sources.length && !media.length && !explanations.length) return null;
   return (
@@ -908,7 +917,7 @@ function SourceTrail({ paper }) {
           </a>
         ))}
         {media.map((item, index) => (
-          <SourceMedia key={item.id || index} item={item} />
+          <SourceMedia key={item.id || index} item={item} paperId={paper.id} />
         ))}
       </div>
       {explanations.length > 0 && (
