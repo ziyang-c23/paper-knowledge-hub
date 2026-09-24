@@ -325,3 +325,17 @@ test('appendix is folded once and chapter links open it across reloads', async (
   await expect(page.locator('.paper-appendix')).toHaveCount(1);
   await expect(page.locator('.paper-appendix')).not.toHaveAttribute('open', '');
 });
+
+test('failed deferred PDF module preserves note and provides an explicit refresh', async ({
+  page,
+  request,
+}) => {
+  await readingFixture(page, request, [
+    { id: 'reader-pdf', paperId: 'reader-a', filename: 'fixture.pdf', pageCount: 2 },
+  ]);
+  await page.route('**/assets/pdf-viewer-*.js', (route) => route.abort());
+  await page.goto('/#/paper/reader-a?mode=source');
+  await expect(page.getByRole('heading', { name: '阅读工具暂时无法加载' })).toBeVisible();
+  await expect(page.getByRole('region', { name: '并排阅读笔记' })).toContainText('Real heading');
+  await expect(page.getByRole('button', { name: '刷新页面', exact: true })).toBeVisible();
+});

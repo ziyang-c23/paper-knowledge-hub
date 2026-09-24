@@ -67,6 +67,162 @@
       "type": "string",
       "pattern": "^https://[^\\s]+$"
     },
+    "sourceItem": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "id": {
+          "$ref": "#/definitions/id"
+        },
+        "label": {
+          "type": "string",
+          "maxLength": 10000
+        },
+        "kind": {
+          "type": "string",
+          "maxLength": 100
+        },
+        "url": {
+          "$ref": "#/definitions/url"
+        },
+        "locator": {
+          "type": "string",
+          "maxLength": 10000
+        },
+        "role": {
+          "type": "string",
+          "maxLength": 100
+        },
+        "summary": {
+          "$ref": "#/definitions/text"
+        }
+      }
+    },
+    "sourceBundle": {
+      "anyOf": [
+        {
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "$ref": "#/definitions/sourceItem"
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "title": {
+              "type": "string",
+              "maxLength": 10000
+            },
+            "description": {
+              "$ref": "#/definitions/text"
+            },
+            "items": {
+              "type": "array",
+              "maxItems": 100,
+              "items": {
+                "$ref": "#/definitions/sourceItem"
+              }
+            },
+            "sources": {
+              "type": "array",
+              "maxItems": 100,
+              "items": {
+                "$ref": "#/definitions/sourceItem"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "explanation": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "id": {
+          "$ref": "#/definitions/id"
+        },
+        "title": {
+          "type": "string",
+          "maxLength": 10000
+        },
+        "body": {
+          "$ref": "#/definitions/text"
+        },
+        "kind": {
+          "type": "string",
+          "maxLength": 100
+        },
+        "section": {
+          "type": "string",
+          "maxLength": 10000
+        },
+        "sourceIds": {
+          "$ref": "#/definitions/ids"
+        }
+      }
+    },
+    "mediaItem": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "id": {
+          "$ref": "#/definitions/id"
+        },
+        "type": {
+          "type": "string",
+          "maxLength": 100
+        },
+        "url": {
+          "$ref": "#/definitions/url"
+        },
+        "thumbnail": {
+          "$ref": "#/definitions/url"
+        },
+        "caption": {
+          "type": "string",
+          "maxLength": 10000
+        },
+        "alt": {
+          "type": "string",
+          "maxLength": 10000
+        },
+        "sourceId": {
+          "$ref": "#/definitions/id"
+        }
+      }
+    },
+    "visualNarrative": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "id": {
+          "$ref": "#/definitions/id"
+        },
+        "title": {
+          "type": "string",
+          "maxLength": 10000
+        },
+        "summary": {
+          "$ref": "#/definitions/text"
+        },
+        "steps": {
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        },
+        "mediaIds": {
+          "$ref": "#/definitions/ids"
+        },
+        "sourceIds": {
+          "$ref": "#/definitions/ids"
+        }
+      }
+    },
     "paper": {
       "type": "object",
       "additionalProperties": false,
@@ -185,6 +341,53 @@
         },
         "personalAnalysis": {
           "$ref": "#/definitions/text"
+        },
+        "sourceBundle": {
+          "$ref": "#/definitions/sourceBundle"
+        },
+        "sources": {
+          "type": "array",
+          "maxItems": 200,
+          "items": {
+            "$ref": "#/definitions/sourceItem"
+          }
+        },
+        "explanations": {
+          "anyOf": [
+            {
+              "type": "array",
+              "maxItems": 100,
+              "items": {
+                "$ref": "#/definitions/explanation"
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": true
+            }
+          ]
+        },
+        "media": {
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "$ref": "#/definitions/mediaItem"
+          }
+        },
+        "visualNarratives": {
+          "anyOf": [
+            {
+              "type": "array",
+              "maxItems": 100,
+              "items": {
+                "$ref": "#/definitions/visualNarrative"
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": true
+            }
+          ]
         },
         "facets": {
           "type": "object",
@@ -349,6 +552,47 @@
                     }
                   },
                   "required": ["prediction", "execution", "description"]
+                },
+                "representation": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["convention", "bins", "description", "source"],
+                  "properties": {
+                    "convention": {
+                      "enum": ["openvla-tokenizer", "uniform-bins"]
+                    },
+                    "bins": {
+                      "type": "integer",
+                      "minimum": 2,
+                      "maximum": 512
+                    },
+                    "description": {
+                      "type": "string",
+                      "maxLength": 10000
+                    },
+                    "sourceId": {
+                      "type": "string"
+                    },
+                    "sourceRevisions": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "string"
+                      }
+                    },
+                    "source": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": ["url", "locator"],
+                      "properties": {
+                        "url": {
+                          "$ref": "#/definitions/url"
+                        },
+                        "locator": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
                 }
               },
               "required": ["title", "steps"]

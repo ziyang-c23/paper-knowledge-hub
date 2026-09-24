@@ -32,3 +32,19 @@ test('public mobile chapter drawer works at 320px without page overflow', async 
     await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1),
   ).toBeTruthy();
 });
+
+test('public research search uses only the static projection and keeps chapter links', async ({
+  page,
+}) => {
+  const apiRequests = [];
+  page.on('request', (request) => {
+    if (new URL(request.url()).pathname.includes('/api/')) apiRequests.push(request.url());
+  });
+  await page.goto('./#/research?q=diffusion&scope=notes');
+  await expect(page.locator('.search-result').first()).toBeVisible();
+  await expect(page.locator('.search-result .result-title').first()).toHaveAttribute(
+    'href',
+    /mode=note.*section=/,
+  );
+  expect(apiRequests).toEqual([]);
+});

@@ -9,7 +9,11 @@ import {
   commitWorkspace,
   withWorkspaceLock,
 } from '../../services/workspace-store.mjs';
-import { readReadingRecords, saveReadingRecords } from '../../services/reading-records.mjs';
+import {
+  readReadingRecords,
+  saveReadingRecords,
+  listReadingRecords,
+} from '../../services/reading-records.mjs';
 
 async function fixture(t) {
   const root = await mkdtemp(path.join(os.tmpdir(), 'pkh-reading-'));
@@ -39,6 +43,51 @@ const record = {
   page: '2',
   createdAt: '2026-09-24T00:00:00.000Z',
 };
+
+test('read-only library records exclude orphans and archived papers and feed local retrieval', async (t) => {
+  const { root, store } = await fixture(t);
+  await saveReadingRecords(root, {
+    paperId: 'reading-a',
+    expectedRevision: 'empty',
+    entries: [record],
+  });
+  await saveReadingRecords(root, {
+    paperId: 'reading-b',
+    expectedRevision: 'empty',
+    entries: [record],
+  });
+  const changed = await putRecord(root, {
+    expectedRevision: store.revision,
+    collection: 'papers',
+    record: { ...store.dataset.papers.find((p) => p.id === 'reading-b'), lifecycle: 'archived' },
+  });
+  const listed = await listReadingRecords(root, changed);
+  assert.deepEqual(
+    listed.map((r) => r.paperId),
+    ['reading-a'],
+  );
+  const { createLocalServer } = await import('../../services/local-server.mjs');
+  const server = createLocalServer({ root });
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  t.after(
+    () =>
+      new Promise((resolve) => {
+        server.closeAllConnections();
+        server.close(resolve);
+      }),
+  );
+  const base = `http://127.0.0.1:${server.address().port}`;
+  const workspace = await fetch(base + '/api/workspace').then((r) => r.json());
+  assert.deepEqual(
+    workspace.readingRecords.map((r) => r.paperId),
+    ['reading-a'],
+  );
+  const result = await fetch(base + '/api/retrieval?q=condition&scope=reading').then((r) =>
+    r.json(),
+  );
+  assert.equal(result.direct[0].readingRecordId, record.id);
+  assert.equal(result.direct.length, 1);
+});
 
 test('reading records persist independently and reject stale saves under workspace lock', async (t) => {
   const { root } = await fixture(t);

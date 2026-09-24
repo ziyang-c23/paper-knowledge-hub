@@ -330,7 +330,7 @@ function validateAuxiliary(folder, name, value) {
         : name.endsWith('.context.json')
           ? value.taskId === name.slice(0, -13)
           : value.id === name.slice(0, -5) &&
-            ['section', 'experiments', 'compare'].includes(value.type) &&
+            ['section', 'experiments', 'compare', 'explanation'].includes(value.type) &&
             ['queued', 'running', 'review', 'failed', 'applied', 'cancelled'].includes(
               value.status,
             ));

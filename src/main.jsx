@@ -1,3 +1,7 @@
+import { AsyncPanel } from './async-panel.jsx';
+import { PrivateReadingInfo, PrivateDrafts, PrivateAttachments } from './private-reading.jsx';
+import { paperSources, sourceFreshness } from './lib/sources.mjs';
+import { SourceMedia } from './source-media.jsx';
 import React, { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { createRoot } from 'react-dom/client';
 import Markdown from 'react-markdown';
@@ -329,16 +333,25 @@ function App() {
   if (window.__PKH_LOCAL__ && !workspace)
     return (
       <main className="panel padded">
-        <h1>{workspaceError ? '无法读取本地主库' : '正在读取本地主库…'}</h1>
+        <h1>{workspaceError ? '无法读取工作区' : '正在读取工作区…'}</h1>
         <p role="alert">{workspaceError}</p>
-        <p>
-          请先运行 npm run workspace -- init --write，再启动本地服务。读取失败不会回退到示例数据。
-        </p>
-        <button onClick={() => refresh().catch(() => {})}>重试</button>
+        {workspaceError && (
+          <>
+            <p>请检查工作区服务与访问权限。读取失败不会覆盖已有资料或回退到示例数据。</p>
+            <button onClick={() => refresh().catch(() => {})}>重试</button>
+          </>
+        )}
       </main>
     );
   let page =
-    workspace && route.path === '/drafts' ? (
+    workspace?.readOnly &&
+    (route.path.startsWith('/edit/') || ['/manage', '/associations'].includes(route.path)) ? (
+      <PrivateReadingInfo workspace={workspace} />
+    ) : workspace?.readOnly && route.path === '/drafts' ? (
+      <PrivateDrafts Md={Md} />
+    ) : workspace?.readOnly && route.path === '/database' ? (
+      <LibraryPage {...props} />
+    ) : workspace && route.path === '/drafts' ? (
       <DraftInbox {...props} />
     ) : workspace && route.path === '/associations' ? (
       <>
@@ -359,23 +372,30 @@ function App() {
       />
     ) : workspace && route.path.startsWith('/document/') ? (
       <DocumentReader {...props} id={route.path.slice(10)} page={route.params.get('page')} />
-    ) : workspace && route.path === '/research' ? (
-      <ResearchSearch {...props} />
+    ) : route.path === '/research' ? (
+      <ResearchSearch
+        {...props}
+        workspace={workspace || { dataset: data, readOnly: true, public: true, documents: [] }}
+      />
     ) : route.path === '/entities' ||
       route.path.startsWith('/entities/') ||
       route.path.startsWith('/concept/') ? (
-      <Suspense fallback={<p role="status">正在打开研究对象…</p>}>
-        <EntitiesPage
-          {...props}
-          workspace={workspace || { dataset: data, readOnly: true }}
-          key={route.path + (route.params.get('edit') || '')}
-          route={{ ...route, path: route.path.replace('/concept/', '/entities/') }}
-        />
-      </Suspense>
+      <AsyncPanel>
+        <Suspense fallback={<p role="status">正在打开研究对象…</p>}>
+          <EntitiesPage
+            {...props}
+            workspace={workspace || { dataset: data, readOnly: true }}
+            key={route.path + (route.params.get('edit') || '')}
+            route={{ ...route, path: route.path.replace('/concept/', '/entities/') }}
+          />
+        </Suspense>
+      </AsyncPanel>
     ) : workspace && route.path === '/database' ? (
-      <Suspense fallback={<p role="status">正在打开数据库…</p>}>
-        <DatabasePage {...props} key={route.params.get('view') || 'default'} />
-      </Suspense>
+      <AsyncPanel>
+        <Suspense fallback={<p role="status">正在打开数据库…</p>}>
+          <DatabasePage {...props} key={route.params.get('view') || 'default'} />
+        </Suspense>
+      </AsyncPanel>
     ) : route.path === '/library' ? (
       <LibraryPage {...props} />
     ) : route.path.startsWith('/paper/') ? (
@@ -519,7 +539,7 @@ function LibraryPage({ route, selected, toggle, workspace }) {
       </Heading>
       <section className="panel">
         <Filters route={route} />
-        {workspace && (
+        {workspace && !workspace.readOnly && (
           <div className="local-filter">
             <label>
               记录阶段
@@ -603,7 +623,7 @@ function LibraryPage({ route, selected, toggle, workspace }) {
                 {label}
               </a>
             ))}
-            {workspace && (
+            {workspace && !workspace.readOnly && (
               <a className="button small" href="#/database">
                 批量整理
               </a>
@@ -757,7 +777,7 @@ function LibraryPage({ route, selected, toggle, workspace }) {
                     <a className="button" href={link('/paper/' + active.id, { mode: 'source' })}>
                       PDF 与笔记
                     </a>
-                    {workspace && (
+                    {workspace && !workspace.readOnly && (
                       <a className="button" href={link('/edit/' + active.id)}>
                         编辑记录
                       </a>
@@ -807,6 +827,109 @@ function LibraryPage({ route, selected, toggle, workspace }) {
     </>
   );
 }
+function QuickUnderstanding({ paper, evidence }) {
+  const fields = [
+    ['研究问题', paper.problem],
+    ['方法抓手', paper.method],
+    ['当前结论', paper.conclusions],
+    ['边界提醒', paper.limitations],
+  ].filter(([, value]) => value);
+  return (
+    <section className="quick-understanding" aria-label="30秒理解">
+      <div className="quick-understanding-heading">
+        <div>
+          <span className="eyebrow">QUICK READ</span>
+          <h2>30 秒理解</h2>
+          <p>先判断论文解决什么、怎样解决、结论在哪些条件下成立，再进入交互解释和原文。</p>
+        </div>
+        <a
+          className="button small"
+          href={link('/paper/' + paper.id, { mode: 'overview', focus: 'research-visuals' })}
+        >
+          进入研究解释 ↓
+        </a>
+      </div>
+      <div className="quick-understanding-grid">
+        {fields.map(([label, value]) => (
+          <article key={label}>
+            <span>{label}</span>
+            <p>{value}</p>
+          </article>
+        ))}
+      </div>
+      <div className="quick-source-strip">
+        <a href={paper.url} target="_blank" rel="noreferrer">
+          阅读原文 ↗
+        </a>
+        <a href={link('/paper/' + paper.id, { mode: 'overview', focus: 'paper-source-trail' })}>
+          实现与来源 ↓
+        </a>
+      </div>
+    </section>
+  );
+}
+
+function SourceTrail({ paper }) {
+  const toItems = (value) =>
+    Array.isArray(value) ? value : value && typeof value === 'object' ? Object.values(value) : [];
+  const canonical = paperSources(paper).filter((item) => item?.url);
+  const sources = [
+    ...canonical,
+    ...(paper.visuals?.resources || []).filter(
+      (item) => item.url && !canonical.some((source) => source.url === item.url),
+    ),
+  ];
+  const media = toItems(paper.media).filter((item) => item?.url);
+  const explanations = toItems(paper.explanations).filter((item) => item?.body);
+  if (!sources.length && !media.length && !explanations.length) return null;
+  return (
+    <section id="paper-source-trail" className="source-trail" aria-label="多源研究材料">
+      <div className="source-trail-heading">
+        <div>
+          <span className="eyebrow">SOURCE TRAIL</span>
+          <h3>从原文到实现</h3>
+        </div>
+        <span className="muted">每条解释都保留回查入口</span>
+      </div>
+      <div className="source-trail-grid">
+        {sources.map((item, index) => (
+          <a
+            className="source-trail-item"
+            href={item.url}
+            target="_blank"
+            rel="noreferrer"
+            key={item.id || item.url || index}
+          >
+            <span>{item.type || item.kind || 'source'}</span>
+            <strong>{item.label || item.title || '研究材料'}</strong>
+            {item.locator && <small>{item.locator}</small>}
+            {item.revision && <small>commit {item.revision.slice(0, 12)}</small>}
+            {item.summary && <p>{item.summary}</p>}
+          </a>
+        ))}
+        {media.map((item, index) => (
+          <SourceMedia key={item.id || index} item={item} />
+        ))}
+      </div>
+      {explanations.length > 0 && (
+        <div className="source-explanation-list">
+          {explanations.slice(0, 3).map((item) => (
+            <details key={item.id || item.title}>
+              <summary>
+                {item.title || '研究解释'}
+                {['stale', 'missing'].includes(sourceFreshness(paper, item).status)
+                  ? ' · 来源已变化，待复核'
+                  : ''}
+              </summary>
+              <p>{item.body}</p>
+            </details>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
 function PaperPage({ route, selected, toggle, notify, workspace, refresh }) {
   const [sourcePreview, setSourcePreview] = useState(null);
   const sourceDialog = useRef(null);
@@ -843,6 +966,15 @@ function PaperPage({ route, selected, toggle, notify, workspace, refresh }) {
         () => document.getElementById('evidence-' + ev)?.scrollIntoView({ block: 'center' }),
         80,
       );
+  }, [route.path, route.params.toString()]);
+  useEffect(() => {
+    const focus = route.params.get('focus');
+    if (!focus) return;
+    const timer = setTimeout(
+      () => document.getElementById(focus)?.scrollIntoView({ block: 'start' }),
+      80,
+    );
+    return () => clearTimeout(timer);
   }, [route.path, route.params.toString()]);
   if (!p) return <Empty title="论文不存在" />;
   const evidence = data.evidence.filter((e) => e.paperId === p.id),
@@ -894,21 +1026,8 @@ function PaperPage({ route, selected, toggle, notify, workspace, refresh }) {
           {p.year} · {p.version || '版本未记录'}
         </p>
       </details>
-      <p className="paper-guide">{p.problem || p.visuals?.guide}</p>
-      <div className="paper-orientation" aria-label="论文导读">
-        <div>
-          <span className="paper-orientation-label">核心改变</span>
-          <p>{p.method || '先从方法与实验条件开始，建立对论文贡献的整体判断。'}</p>
-        </div>
-        <div>
-          <span className="paper-orientation-label">建议阅读</span>
-          <p>方法 → 实验条件 → 结果边界</p>
-        </div>
-        <div>
-          <span className="paper-orientation-label">先记住</span>
-          <p>{p.limitations || '结论只在论文报告的任务、数据和适配条件下成立。'}</p>
-        </div>
-      </div>
+      {readingMode !== 'overview' && <p className="paper-guide">{p.problem || p.visuals?.guide}</p>}
+      {readingMode === 'overview' && <QuickUnderstanding paper={p} evidence={evidence} />}
       <details className="paper-tools">
         <summary>资源与操作 · 原文、代码、引用、编辑</summary>
         {p.visuals?.resources?.length > 0 && (
@@ -927,7 +1046,7 @@ function PaperPage({ route, selected, toggle, notify, workspace, refresh }) {
           </div>
         )}
         <div className="detail-toolbar">
-          {workspace && (
+          {workspace && !workspace.readOnly && (
             <>
               <a className="button primary" href={link('/edit/' + p.id)}>
                 编辑论文
@@ -1012,10 +1131,20 @@ function PaperPage({ route, selected, toggle, notify, workspace, refresh }) {
             Md={Md}
             local={Boolean(workspace)}
           />
-          <ReaderNotes paper={p} local={Boolean(workspace)} csrfToken={workspace?.csrfToken} />
+          <ReaderNotes paper={p} local={Boolean(workspace)} csrfToken={workspace?.csrfToken} readOnly={workspace?.readOnly} />
         </>
       )}
-      {readingMode === 'overview' && <ResearchVisuals paper={p} />}
+      {readingMode === 'overview' && (
+        <div id="research-visuals" className="research-explanation-layer">
+          <div className="research-explanation-heading">
+            <span className="eyebrow">RESEARCH EXPLANATION</span>
+            <h2>研究解释层</h2>
+            <p>把方法信息流、实验条件和结果边界连接起来，支持继续追问。</p>
+          </div>
+          <ResearchVisuals paper={p} />
+          <SourceTrail key={p.id} paper={p} />
+        </div>
+      )}
       <div className="detail-grid">
         <div>
           <section
@@ -1023,32 +1152,18 @@ function PaperPage({ route, selected, toggle, notify, workspace, refresh }) {
             className="panel detail-summary"
             hidden={readingMode !== 'overview'}
           >
-            <div className="section-heading">
-              <h2>研究速览</h2>
-              <span className="muted">整理者归纳 · 请结合原文</span>
-            </div>
-            {[
-              { k: 'problem', l: '研究问题' },
-              { k: 'method', l: '方法概括' },
-              { k: 'conclusions', l: '关键结论' },
-              { k: 'limitations', l: '局限与边界' },
-            ].map((f) => (
-              <div className="summary-field" key={f.k}>
-                <h3>{f.l}</h3>
-                <p>{unknown(p[f.k])}</p>
-                {(p.claimEvidence?.[f.k] || []).slice(0, 1).map((id) => (
-                  <a
-                    className="claim-link"
-                    key={id}
-                    href={link('/paper/' + p.id, { evidence: id })}
-                  >
-                    来源 · {p.claimEvidence[f.k].length}
-                  </a>
-                ))}
-              </div>
-            ))}
             <details>
-              <summary>任务、数据与评测条件</summary>
+              <summary>概览来源与研究条件</summary>
+              <div className="row wrap">
+                {['problem', 'method', 'conclusions', 'limitations'].map((key, index) =>
+                  (p.claimEvidence?.[key] || []).slice(0, 1).map((id) => (
+                    <a className="claim-link" key={id} href={link('/paper/' + p.id, { evidence: id })}>
+                      {['研究问题', '方法概括', '关键结论', '局限与边界'][index]} · 查看来源
+                    </a>
+                  ))
+                )}
+              </div>
+
               {[
                 'inputs',
                 'outputs',
@@ -1087,7 +1202,7 @@ function PaperPage({ route, selected, toggle, notify, workspace, refresh }) {
                 <h2>研究配置</h2>
                 <p className="muted">论文直接关联的对象；点击可回到方法、数据、任务或问题档案。</p>
               </div>
-              {workspace && (
+              {workspace && !workspace.readOnly && (
                 <a className="button small" href={link('/edit/' + p.id)}>
                   整理配置
                 </a>
@@ -1132,7 +1247,7 @@ function PaperPage({ route, selected, toggle, notify, workspace, refresh }) {
                 <PaperNote paper={p} Md={Md} />
               ) : (
                 <Empty title="尚未整理阅读笔记">
-                  {workspace ? (
+                  {workspace && !workspace.readOnly ? (
                     <a href={link('/edit/' + p.id)}>打开编辑器开始整理</a>
                   ) : (
                     '此论文尚未提供深入笔记。'
@@ -1157,7 +1272,7 @@ function PaperPage({ route, selected, toggle, notify, workspace, refresh }) {
           {(readingMode === 'note' || readingMode === 'source') && (
             <NoteOutline paper={p} mode={readingMode} />
           )}
-          {workspace && readingMode === 'sources' && (
+          {workspace && readingMode === 'sources' && (workspace.readOnly ? <PrivateAttachments paper={p} documents={workspace.documents} /> :
             <DocumentPanel paperId={p.id} workspace={workspace} refresh={refresh} notify={notify} />
           )}
           <section className="panel">
@@ -1181,7 +1296,7 @@ function PaperPage({ route, selected, toggle, notify, workspace, refresh }) {
               <h2>关联材料</h2>
               <Network size={18} />
             </div>
-            {workspace && (
+            {workspace && !workspace.readOnly && (
               <a className="button full" href={'#/associations?collection=relations&paper=' + p.id}>
                 新增或编辑关联
               </a>
@@ -1227,7 +1342,8 @@ function TopicPage({ route, workspace }) {
         eyebrow="TOPICS & TAXONOMY"
         title={t ? t.title : '研究专题'}
         actions={
-          workspace && (
+          workspace &&
+          !workspace.readOnly && (
             <a
               className="button primary"
               href={'#/associations?collection=topics' + (t ? '&id=' + t.id : '')}
@@ -1954,7 +2070,7 @@ function ComparePage({ route, selected, toggle, setSelected, workspace, refresh,
         />
         收起完全相同的字段
       </label>
-      {workspace && (
+      {workspace && !workspace.readOnly && (
         <section className="comparison-save">
           <label>
             保存到专题{' '}

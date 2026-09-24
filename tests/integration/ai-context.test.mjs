@@ -53,6 +53,37 @@ test('AI context defaults output correctly, preserves old notes, excludes privat
         note,
         personalAnalysis: 'PERSONAL-MARKER',
         privateNotes: 'LEGACY-PRIVATE-MARKER',
+        sources: [
+          {
+            id: 'allowed-source',
+            aiAllowed: true,
+            text: 'ALLOWED-EXCERPT',
+            metadata: { privateNotes: 'NESTED-PRIVATE-MARKER' },
+          },
+          { id: 'denied-source', aiAllowed: false, text: 'DENIED-SOURCE-MARKER' },
+        ],
+        sourceBundle: [{ id: 'legacy-source', aiAllowed: false, text: 'DENIED-LEGACY-MARKER' }],
+        explanations: [
+          {
+            id: 'hidden-explanation',
+            sourceIds: ['denied-source'],
+            body: 'DENIED-DERIVED-EXPLANATION',
+          },
+        ],
+        media: [{ id: 'hidden-media', sourceId: 'denied-source', caption: 'DENIED-DERIVED-MEDIA' }],
+        visuals: {
+          method: {
+            title: 'Method',
+            steps: [],
+            representation: {
+              convention: 'uniform-bins',
+              bins: 2,
+              description: 'DENIED-DERIVED-VISUAL',
+              sourceId: 'denied-source',
+              source: { url: 'https://example.org/source', locator: 'Example' },
+            },
+          },
+        },
       },
     });
   }
@@ -97,14 +128,34 @@ test('AI context defaults output correctly, preserves old notes, excludes privat
   assert.equal(context.paper.privateNotes, undefined);
   assert.doesNotMatch(
     raw,
-    /PERSONAL-MARKER|LEGACY-PRIVATE-MARKER|OTHER-PAPER-TEXT|DETACHED-PDF-TEXT/,
+    /PERSONAL-MARKER|LEGACY-PRIVATE-MARKER|OTHER-PAPER-TEXT|DETACHED-PDF-TEXT|NESTED-PRIVATE-MARKER|DENIED-SOURCE-MARKER|DENIED-LEGACY-MARKER|DENIED-DERIVED-/,
   );
+  assert.deepEqual(
+    context.paper.sources.map((source) => source.id),
+    ['allowed-source'],
+  );
+  assert.equal(context.paper.sources[0].text, 'ALLOWED-EXCERPT');
   assert.equal(context.documents.length, 1);
   assert.equal(context.documents[0].pages[0].text, 'CURRENT-PDF-TEXT');
   assert.deepEqual(context.documents[0].pages[0].warnings, ['layout-review-needed']);
   assert.deepEqual(context.recommendedSections, NOTE_SECTIONS);
   assert.equal(context.noteTemplate, createNoteTemplate());
   assert.equal(await readFile(path.join(root, 'private/workspace.json'), 'utf8'), before);
+  await run(
+    process.execPath,
+    [
+      path.join(repo, 'scripts/research-context.mjs'),
+      'explain-context',
+      '--paper',
+      'paper-a',
+      '--out',
+      'private/explain.json',
+    ],
+    { cwd: root },
+  );
+  const explainRaw = await readFile(path.join(root, 'private/explain.json'), 'utf8');
+  assert.doesNotMatch(explainRaw, /DENIED-DERIVED-|DENIED-SOURCE-MARKER|NESTED-PRIVATE-MARKER/);
+  assert.equal(JSON.parse(explainRaw).paper.visuals.method.representation, undefined);
 
   for (const args of [
     [],

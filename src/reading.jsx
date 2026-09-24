@@ -1,3 +1,4 @@
+import { AsyncPanel } from './async-panel.jsx';
 import React, { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -65,8 +66,12 @@ export function PaperNote({ paper, Md = DefaultNoteMarkdown }) {
 
 export function ParallelReader({ paper, documents, Md, local = Boolean(window.__PKH_LOCAL__) }) {
   const docs = (local ? documents || [] : []).filter((d) => d.paperId === paper.id),
-    [documentId, setDocumentId] = useState(docs[0]?.id || ''),
-    [page, setPage] = useState(1);
+    [documentId, setDocumentId] = useState(
+      () => new URLSearchParams(location.hash.split('?')[1]).get('document') || docs[0]?.id || '',
+    ),
+    [page, setPage] = useState(() =>
+      Math.max(1, Number(new URLSearchParams(location.hash.split('?')[1]).get('page')) || 1),
+    );
   const doc = docs.find((d) => d.id === documentId) || docs[0];
   const activePage = doc?.id === documentId ? Math.min(page, doc.pageCount) : 1;
   return (
@@ -110,19 +115,21 @@ export function ParallelReader({ paper, documents, Md, local = Boolean(window.__
                 </select>
               </label>
             </div>
-            <Suspense fallback={<p role="status">正在打开原文…</p>}>
-              <PdfViewer
-                id={doc.id}
-                page={activePage}
-                onSelection={(selection) => {
-                  window.dispatchEvent(
-                    new CustomEvent('pkh-reader-selection', {
-                      detail: { ...selection, paperId: paper.id },
-                    }),
-                  );
-                }}
-              />
-            </Suspense>
+            <AsyncPanel>
+              <Suspense fallback={<p role="status">正在打开原文…</p>}>
+                <PdfViewer
+                  id={doc.id}
+                  page={activePage}
+                  onSelection={(selection) => {
+                    window.dispatchEvent(
+                      new CustomEvent('pkh-reader-selection', {
+                        detail: { ...selection, paperId: paper.id },
+                      }),
+                    );
+                  }}
+                />
+              </Suspense>
+            </AsyncPanel>
             <a href={'/api/documents/' + doc.id + '/file'} target="_blank" rel="noreferrer">
               打开 PDF 原件 ↗
             </a>
@@ -289,11 +296,17 @@ export function NoteOutline({ paper, mode }) {
   );
 }
 
-export function ReaderNotes({ paper, local = Boolean(window.__PKH_LOCAL__), csrfToken = '' }) {
+export function ReaderNotes({
+  paper,
+  local = Boolean(window.__PKH_LOCAL__),
+  csrfToken = '',
+  readOnly = Boolean(window.__PKH_PRIVATE_WEB__),
+}) {
   const key = (local ? 'pkh-reader-notes-' : 'pkh-public-reader-notes-') + paper.id;
   return (
     <ReaderNotesForm
       key={key}
+      readOnly={readOnly}
       storageKey={key}
       paperId={paper.id}
       local={local}
@@ -317,7 +330,7 @@ function browserEntries(key) {
     return [];
   }
 }
-function ReaderNotesForm({ storageKey, paperId, local, csrfToken }) {
+function ReaderNotesForm({ storageKey, paperId, local, csrfToken, readOnly }) {
   const [entries, setEntries] = useState(() => (local ? [] : browserEntries(storageKey)));
   const [legacy, setLegacy] = useState(() => (local ? browserEntries(storageKey) : []));
   const [page, setPage] = useState(''),
@@ -329,6 +342,13 @@ function ReaderNotesForm({ storageKey, paperId, local, csrfToken }) {
     [saving, setSaving] = useState(false),
     [reload, setReload] = useState(0);
   const inFlight = useRef(false);
+  useEffect(() => {
+    const id = new URLSearchParams(location.hash.split('?')[1]).get('record');
+    if (id && entries.some((item) => item.id === id)) {
+      document.getElementById('reading-record-' + id)?.scrollIntoView({ block: 'center' });
+    }
+  }, [entries]);
+
   useEffect(() => {
     if (!local) return;
     let active = true;
@@ -370,7 +390,7 @@ function ReaderNotesForm({ storageKey, paperId, local, csrfToken }) {
     return () => window.removeEventListener('pkh-reader-selection', capture);
   }, [paperId]);
   const persist = async (next) => {
-    if (inFlight.current) return false;
+    if (readOnly || inFlight.current) return false;
     inFlight.current = true;
     setSaving(true);
     try {
@@ -435,10 +455,14 @@ function ReaderNotesForm({ storageKey, paperId, local, csrfToken }) {
         <div>
           <h2>阅读记录</h2>
           <p className="muted">
-            记录问题与想法，{local ? '保存到本地空间。' : '保存在当前浏览器。'}
+            {readOnly ? (
+              '来自私人主库的阅读记录；当前只读。'
+            ) : (
+              <>记录问题与想法，{local ? '保存到本地空间。' : '保存在当前浏览器。'}</>
+            )}
           </p>
         </div>
-        <span className="badge">{local ? '本地保存' : '仅此浏览器'}</span>
+        <span className="badge">{readOnly ? '服务器记录' : local ? '本地保存' : '仅此浏览器'}</span>
       </div>
       {loading && <p role="status">正在读取阅读记录…</p>}
       {error && (
@@ -451,7 +475,7 @@ function ReaderNotesForm({ storageKey, paperId, local, csrfToken }) {
           )}
         </div>
       )}
-      {local && legacy.length > 0 && (
+      {local && !readOnly && legacy.length > 0 && (
         <button disabled={saving || loading || !revision} onClick={importLegacy}>
           导入此浏览器旧记录 ({legacy.length})
         </button>
@@ -464,7 +488,7 @@ function ReaderNotesForm({ storageKey, paperId, local, csrfToken }) {
           </button>
         </blockquote>
       )}
-      <div className="reader-note-form">
+      <div className="reader-note-form" hidden={readOnly}>
         <input
           aria-label="PDF 页码"
           placeholder="PDF 页码"
@@ -489,11 +513,12 @@ function ReaderNotesForm({ storageKey, paperId, local, csrfToken }) {
       {entries.length ? (
         <div className="reader-note-list">
           {[...entries].reverse().map((item) => (
-            <article key={item.id}>
+            <article key={item.id} id={'reading-record-' + item.id}>
               <div>
                 <b>{item.page === '未标页' ? '未标页码' : `文件第 ${item.page} 页`}</b>
                 <button
                   className="text-button"
+                  hidden={readOnly}
                   disabled={saving || loading}
                   onClick={() => persist(entries.filter((record) => record.id !== item.id))}
                 >

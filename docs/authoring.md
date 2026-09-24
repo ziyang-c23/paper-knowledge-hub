@@ -70,3 +70,9 @@ npm run export -- --format json --out public-export.json
 公开前审查 note 及结构化内容，确认论文、证据、分类和关系依赖的公开范围；然后 build。源码 ZIP 只含公开子集，完整库恢复使用维护页备份或 workspace backup。`demo:clear` 仅用于旧公开模板来源，不是本地主库清理工具；本地日常使用归档。
 
 本地比较页也可导出 Awesome 待审条目，供人工选择后放入其他项目；不会写入目标 taxonomy 或推送。论文 Markdown 导出保留个人分析时明确标为本地判断，分享文件前须审查披露范围。
+
+### 多源阅读素材与视觉叙事
+
+`paper.note` 是唯一完整正文。`sources` 是多源材料的写入入口，旧 `sourceBundle` 仅兼容读取；`visuals` 承载方法步骤、实验与教学参数；`explanations` 保存局部补充解释；`media` 保存来源图与视频。`visualNarratives` 仅保留兼容，不为同一机制再写一套平行数据。字段格式以 schema 和真实 CLI 接口为准。新增来源、媒体、解释必须显式允许公开才进入投影，派生模块引用私有来源时仍被排除。
+
+这些字段是 `note` 的补充，不替代原文、证据或研究速览。URL 必须是公开 HTTPS 地址；本地 PDF 链接在公开投影时会根据论文的 arXiv/DOI 来源转换，不能把 `private/` 路径写入公开记录。

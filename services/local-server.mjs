@@ -1,5 +1,5 @@
 import { listAITasks, mutateAITask, getAITaskContext } from './ai-tasks.mjs';
-import { readReadingRecords, saveReadingRecords } from './reading-records.mjs';
+import { readReadingRecords, saveReadingRecords, listReadingRecords } from './reading-records.mjs';
 import { listDrafts, saveDraft, applyDraft } from './drafts.mjs';
 import http from 'node:http';
 import path from 'node:path';
@@ -129,6 +129,7 @@ export function createLocalServer({
           csrfToken,
           database: store.database || defaultDatabase(),
           documents: await documents(root, store),
+          readingRecords: await listReadingRecords(root, store),
         });
       }
       if (['/api/database', '/api/papers/batch'].includes(url.pathname) && req.method === 'POST') {
@@ -214,6 +215,7 @@ export function createLocalServer({
           enhancedSearch({ ...store.dataset, scope: 'local' }, url.searchParams.get('q') || '', {
             ...Object.fromEntries(url.searchParams),
             documents: await documents(root, store),
+            readingRecords: await listReadingRecords(root, store),
           }),
         );
       }

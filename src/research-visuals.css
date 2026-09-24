@@ -2,6 +2,39 @@
   max-width: 1100px;
   margin: 24px 0;
 }
+.mechanism-strip {
+  display: block;
+  width: 100%;
+  min-height: 90px;
+  color: var(--green);
+}
+.mechanism-strip rect {
+  fill: #f1f4f0;
+  stroke: #cad4ce;
+  transition: fill 200ms ease;
+}
+.mechanism-strip path {
+  stroke: currentColor;
+  fill: none;
+}
+.mechanism-strip text {
+  fill: #273e35;
+  font-size: 12px;
+}
+.mechanism-strip .flow-caption {
+  fill: #63766d;
+  font-size: 10px;
+}
+.mechanism-strip .active-mechanism rect {
+  fill: #d9eadf;
+  stroke: #356e59;
+  stroke-width: 2;
+}
+@media (max-width: 600px) {
+  .mechanism-strip {
+    display: none;
+  }
+}
 .research-visuals section {
   padding: 24px 0;
   border-top: 1px solid var(--border);
@@ -137,4 +170,189 @@
   content: '当前';
   display: block;
   font-size: 10px;
+}
+.control-cycle {
+  margin-top: 28px;
+}
+.cycle-title h3 {
+  font-size: 22px;
+  line-height: 1.5;
+}
+.cycle-protocol {
+  max-width: 72ch;
+  color: var(--muted);
+  font-size: 13px;
+}
+.cycle-phases {
+  display: flex;
+  flex-wrap: wrap;
+  list-style: none;
+  padding: 0;
+  gap: 8px;
+}
+.cycle-phases li {
+  margin: 0;
+}
+.cycle-phases button {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  background: transparent;
+}
+.cycle-phases button span {
+  font-variant-numeric: tabular-nums;
+  opacity: 0.7;
+}
+.cycle-phases button[aria-current] {
+  border-color: var(--green);
+  background: #e5efe8;
+  font-weight: 650;
+}
+.cycle-diagram {
+  padding: 24px;
+  background: #f0f4ef;
+  border-block: 1px solid var(--border);
+}
+.cycle-observation {
+  font-weight: 650;
+  margin-bottom: 24px;
+}
+.cycle-observation span {
+  font-weight: 400;
+  color: #52675d;
+}
+.cycle-lane {
+  display: grid;
+  grid-template-columns: 85px minmax(0, 1fr);
+  gap: 8px 18px;
+  margin: 20px 0;
+}
+.cycle-lane small {
+  grid-column: 2;
+  color: #52675d;
+}
+.cycle-cells {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(var(--cycle-columns), minmax(0, 1fr));
+  gap: 3px;
+}
+.cycle-cell {
+  display: flex;
+  min-height: 30px;
+  justify-content: center;
+  align-items: center;
+  border: 1px solid #8da89c;
+  font-size: 11px;
+  color: #254d3e;
+  transition: background 180ms;
+}
+.cycle-cell.empty {
+  background: transparent;
+  border-style: dotted;
+  color: transparent;
+}
+.cycle-cell.planned,
+.cycle-cell.new {
+  background: repeating-linear-gradient(135deg, #d3e6da, #d3e6da 3px, #eaf2ed 3px, #eaf2ed 6px);
+}
+.cycle-cell.done {
+  background: #346452;
+  color: white;
+}
+.cycle-cell.unused {
+  border-style: dashed;
+  background: transparent;
+  opacity: 0.6;
+}
+.cycle-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+  font-size: 12px;
+  color: #52675d;
+}
+.cycle-explanation {
+  margin: 18px 0;
+  min-height: 3.5em;
+  max-width: 78ch;
+}
+@media (max-width: 600px) {
+  .cycle-diagram {
+    padding: 16px 10px;
+  }
+  .cycle-lane {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .cycle-lane small {
+    grid-column: 1;
+  }
+  .cycle-cells {
+    grid-template-columns: repeat(var(--cycle-mobile-columns), minmax(0, 1fr));
+  }
+  .cycle-phases button {
+    font-size: 12px;
+    padding: 8px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cycle-cell {
+    transition: none;
+  }
+}
+.encoding-slider {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  max-width: 650px;
+  margin: 20px 0;
+}
+.encoding-slider input {
+  width: 100%;
+  accent-color: var(--green);
+}
+.encoding-slider output {
+  font-variant-numeric: tabular-nums;
+  font-weight: 650;
+}
+.encoding-stages {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: #f0f4ef;
+  padding: 24px;
+}
+.encoding-stages > div {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.encoding-stages strong {
+  font-size: 28px;
+  font-variant-numeric: tabular-nums;
+}
+.encoding-stages small,
+.encoding-stages span {
+  font-size: 12px;
+}
+.encoding-scale {
+  width: 100%;
+  max-width: 680px;
+  color: #61746b;
+  margin: 24px 0;
+}
+.encoding-scale text {
+  fill: currentColor;
+  font-size: 13px;
+}
+@media (max-width: 600px) {
+  .encoding-stages {
+    flex-direction: column;
+    align-items: start;
+  }
+  .encoding-stages > span {
+    transform: rotate(90deg);
+    align-self: center;
+  }
 }

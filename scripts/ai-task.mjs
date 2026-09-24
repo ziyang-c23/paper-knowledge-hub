@@ -47,7 +47,7 @@ try {
 } catch (error) {
   console.error(error.message);
   console.error(
-    'Usage: node scripts/ai-task.mjs create|prepare|import|cancel|retry|apply|list|context --revision HASH [--id TASK_ID --type section|experiments|compare --papers ID,ID --topic ID --section SECTION_ID --result RESULT.json]',
+    'Usage: node scripts/ai-task.mjs create|prepare|import|cancel|retry|apply|list|context --revision HASH [--id TASK_ID --type section|experiments|compare|explanation --papers ID,ID --topic ID --section SECTION_ID --result RESULT.json]',
   );
   process.exitCode = 1;
 }

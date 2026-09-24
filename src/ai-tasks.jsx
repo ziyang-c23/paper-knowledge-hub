@@ -52,6 +52,7 @@ export function AITasks({ workspace, notify }) {
           <select aria-label="AI整理任务" value={type} onChange={(e) => setType(e.target.value)}>
             <option value="section">补当前章节</option>
             <option value="experiments">抽取实验结果</option>
+            <option value="explanation">多源解释 / 代码映射 / 视频说明</option>
             <option value="compare">比较所选论文</option>
           </select>
         </label>
@@ -142,8 +143,15 @@ export function AITasks({ workspace, notify }) {
         {tasks.map((task) => (
           <article className="draft-field-diff" key={task.id}>
             <h3>
-              {{ section: '章节补充', experiments: '实验提取', compare: '论文比较' }[task.type]} ·{' '}
-              {labels[task.status] || task.status}
+              {
+                {
+                  section: '章节补充',
+                  experiments: '实验提取',
+                  compare: '论文比较',
+                  explanation: '多源研究解释',
+                }[task.type]
+              }{' '}
+              · {labels[task.status] || task.status}
             </h3>
             <p>
               {task.question ||

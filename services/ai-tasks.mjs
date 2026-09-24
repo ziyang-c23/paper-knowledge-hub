@@ -9,7 +9,8 @@ import {
 } from './workspace-store.mjs';
 import { saveDraftUnlocked, applyDraftUnlocked } from './drafts.mjs';
 import { NOTE_SECTIONS, NOTE_TEMPLATE_VERSION } from '../src/lib/note-template.mjs';
-const TYPES = new Set(['section', 'experiments', 'compare']);
+import { paperSources, aiContextRecord as safeRecord } from '../src/lib/sources.mjs';
+const TYPES = new Set(['section', 'experiments', 'compare', 'explanation']);
 const fail = (message, status = 400) => Object.assign(Error(message), { status });
 const idPattern = /^[a-f0-9-]{36}$/;
 async function folder(root) {
@@ -70,10 +71,7 @@ function targets(store, task) {
   if (task.type === 'compare' && !topic) throw fail('Comparison target topic not found', 409);
   return { papers, target: topic || papers[0], collection: topic ? 'topics' : 'papers' };
 }
-function safeRecord(record) {
-  const { personalAnalysis, privateNotes, ...rest } = record;
-  return rest;
-}
+
 async function buildContext(root, store, task) {
   const { papers, target, collection } = targets(store, task);
   const ids = new Set(task.paperIds),
@@ -96,36 +94,50 @@ async function buildContext(root, store, task) {
     });
   }
   const resultTemplate =
-    task.type === 'section'
+    task.type === 'explanation'
       ? {
-          sectionText: '此处只写所选章节正文，不含二级章节标题。',
+          explanations: [
+            {
+              id: 'method-guide',
+              title: '方法解释',
+              kind: 'curator-synthesis',
+              body: '依据已读材料解释机制，绑定已有来源。',
+              sourceIds: [],
+            },
+          ],
           sourceMaterial: [],
           uncertainties: [],
         }
-      : task.type === 'compare'
+      : task.type === 'section'
         ? {
-            analysis: '围绕问题比较选定论文，明确共同条件和不可比项。',
-            questions: [],
-            gaps: [],
+            sectionText: '此处只写所选章节正文，不含二级章节标题。',
             sourceMaterial: [],
             uncertainties: [],
           }
-        : {
-            experiments: [
-              {
-                id: 'result-one',
-                label: '实验名称',
-                task: '任务与设置',
-                metric: '指标',
-                unit: '%',
-                trials: '未报告',
-                source: { url: papers[0].url, locator: '原文图表/页码' },
-                rows: [{ label: '方法名', value: null, condition: '条件；未知数值保留null' }],
-              },
-            ],
-            sourceMaterial: [],
-            uncertainties: [],
-          };
+        : task.type === 'compare'
+          ? {
+              analysis: '围绕问题比较选定论文，明确共同条件和不可比项。',
+              questions: [],
+              gaps: [],
+              sourceMaterial: [],
+              uncertainties: [],
+            }
+          : {
+              experiments: [
+                {
+                  id: 'result-one',
+                  label: '实验名称',
+                  task: '任务与设置',
+                  metric: '指标',
+                  unit: '%',
+                  trials: '未报告',
+                  source: { url: papers[0].url, locator: '原文图表/页码' },
+                  rows: [{ label: '方法名', value: null, condition: '条件；未知数值保留null' }],
+                },
+              ],
+              sourceMaterial: [],
+              uncertainties: [],
+            };
   return {
     workflowVersion: NOTE_TEMPLATE_VERSION,
     taskId: task.id,
@@ -158,7 +170,8 @@ export async function createAITask(root, input = {}) {
   return withWorkspaceLock(root, async () => {
     const store = await readWorkspace(root);
     requireRevision(store, input.expectedRevision);
-    if (!TYPES.has(input.type)) throw fail('Task type must be section, experiments or compare');
+    if (!TYPES.has(input.type))
+      throw fail('Task type must be section, experiments, explanation or compare');
     const paperIds = [...new Set(Array.isArray(input.paperIds) ? input.paperIds : [])];
     if (
       !paperIds.length ||
@@ -239,7 +252,52 @@ function resultRecord(store, task, result) {
     throw fail('Result targets a different record');
   if (result.collection && result.collection !== collection)
     throw fail('Result collection differs from task target');
-  if (task.type === 'section') {
+  if (task.type === 'explanation') {
+    if (!Array.isArray(result.explanations) || !result.explanations.length)
+      throw fail('Result requires explanation modules');
+    const allowed = new Map(
+      paperSources(target)
+        .filter((source) => source.aiAllowed === true && source.status === 'read')
+        .map((source) => [source.id, source]),
+    );
+    for (const item of result.explanations) {
+      if (
+        !item.id ||
+        !item.body?.trim() ||
+        !item.sourceIds?.length ||
+        item.sourceIds.some((id) => !allowed.has(id))
+      )
+        throw fail('Each explanation requires text and read source IDs from this paper');
+      if (
+        ![
+          'paper-claim',
+          'official-project-claim',
+          'code-observation',
+          'curator-synthesis',
+          'unverified-hypothesis',
+        ].includes(item.kind)
+      )
+        throw fail(
+          'Unsupported explanation provenance; runtime results require independent execution records',
+        );
+    }
+    const existing = Array.isArray(record.explanations)
+      ? record.explanations
+      : Object.entries(record.explanations || {}).map(([id, value]) => ({ id, ...value }));
+    record.explanations = [
+      ...existing.filter((item) => !result.explanations.some((next) => next.id === item.id)),
+      ...result.explanations.map((item) => ({
+        ...item,
+        // Capture the revisions actually supplied; do not trust a model's version claim.
+        sourceRevisions: Object.fromEntries(
+          item.sourceIds
+            .filter((id) => allowed.get(id)?.revision)
+            .map((id) => [id, allowed.get(id).revision]),
+        ),
+        visibility: 'private',
+      })),
+    ];
+  } else if (task.type === 'section') {
     record.note = sectionNote(record.note, task.sectionId, result.sectionText);
   } else if (task.type === 'experiments') {
     const experiments = result.experiments ?? result.record?.visuals?.experiments;
@@ -280,11 +338,13 @@ export async function importAITask(root, id, input = {}) {
       task.error = null;
       task.resultSummary = {
         fields:
-          task.type === 'section'
-            ? ['note']
-            : task.type === 'experiments'
-              ? ['visuals']
-              : ['analysis', 'questions', 'gaps', 'compareIds'],
+          task.type === 'explanation'
+            ? ['explanations']
+            : task.type === 'section'
+              ? ['note']
+              : task.type === 'experiments'
+                ? ['visuals']
+                : ['analysis', 'questions', 'gaps', 'compareIds'],
         importedAt: new Date().toISOString(),
       };
       return saveTask(root, task);

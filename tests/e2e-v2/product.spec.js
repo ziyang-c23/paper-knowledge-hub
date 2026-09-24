@@ -120,10 +120,24 @@ test('paper modes separate summary, deep notes and sources and survive navigatio
   await page.goBack();
   await expect(page.locator('#paper-note')).toBeVisible();
   await nav.getByRole('link', { name: '研究速览', exact: true }).click();
+  await page.getByText('概览来源与研究条件', { exact: true }).click();
   await page.locator('#research-summary .claim-link').first().click();
   await expect(page.getByRole('dialog', { name: '来源详情' })).toBeVisible();
   await page.getByRole('button', { name: '关闭来源' }).click();
   await expect(page.locator('#research-summary')).toBeVisible();
   await page.goto('/#/paper/octo?evidence=ev-octo-method');
   await expect(page.locator('#paper-evidence')).toBeVisible();
+});
+
+test('paper overview provides a compact quick read and source type trail', async ({ page }) => {
+  await page.goto('/#/paper/octo?mode=overview');
+  const quick = page.getByRole('region', { name: '30秒理解' });
+  await expect(quick).toBeVisible();
+  await expect(quick.getByText('研究问题', { exact: true })).toBeVisible();
+  await expect(quick.getByText('方法抓手', { exact: true })).toBeVisible();
+  await expect(quick.getByRole('link', { name: '实现与来源 ↓' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '研究解释层', exact: true })).toBeVisible();
+  await quick.getByRole('link', { name: '进入研究解释 ↓', exact: true }).click();
+  await expect(page).toHaveURL(/focus=research-visuals/);
+  await expect(page.locator('#research-visuals')).toBeInViewport();
 });

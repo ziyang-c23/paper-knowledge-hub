@@ -1,6 +1,7 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { readWorkspace, safePrivate } from '../services/workspace-store.mjs';
+import { aiContextRecord } from '../src/lib/sources.mjs';
 import {
   NOTE_TEMPLATE_VERSION,
   NOTE_SECTIONS,
@@ -29,7 +30,7 @@ const root = process.cwd();
 const store = await readWorkspace(root);
 const paper = store.dataset.papers.find((item) => item.id === paperId);
 if (!paper) throw Error(`Unknown paper ID: ${paperId}`);
-const { personalAnalysis, privateNotes, ...contextPaper } = paper;
+const contextPaper = aiContextRecord(paper);
 const documentIds = new Set(store.documentIds || []);
 const documents = [];
 for (const id of documentIds) {

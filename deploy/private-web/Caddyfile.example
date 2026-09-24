@@ -1,0 +1,10 @@
+# Replace hostname. Caddy terminates TLS; the Node port must remain loopback-only.
+research.example.org {
+    reverse_proxy 127.0.0.1:4177 {
+        header_up Host research.example.org
+        header_up X-Forwarded-Proto https
+    }
+    header Strict-Transport-Security "max-age=31536000"
+    # No file_server or response caching: every route must pass Node authentication.
+    # Do not log Authorization headers, and do not expose the local writer (4176).
+}

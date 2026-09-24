@@ -1,5 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import './research-visuals.css';
+import { ControlCycle } from './control-cycle.jsx';
+import { ActionEncoding } from './action-encoding.jsx';
+import { sourceFreshness } from './lib/sources.mjs';
+function SourceUpdate({ paper, derived }) {
+  return ['stale', 'missing'].includes(sourceFreshness(paper, derived).status) ? (
+    <p className="muted">此讲解采用的来源版本已变化，需重新核对。</p>
+  ) : null;
+}
 
 export function ResearchVisuals({ paper }) {
   if (!paper.visuals) return null;
@@ -7,23 +15,17 @@ export function ResearchVisuals({ paper }) {
     <div className="research-visuals" key={paper.id}>
       {paper.visuals.method && <MethodExplorer paper={paper} method={paper.visuals.method} />}
       {paper.visuals.experiments?.length > 0 && (
-        <ExperimentExplorer groups={paper.visuals.experiments} />
+        <ExperimentExplorer paper={paper} groups={paper.visuals.experiments} />
       )}
     </div>
   );
 }
 function MethodExplorer({ paper, method }) {
   const [active, setActive] = useState(method.steps[0]?.id);
-  const [playing, setPlaying] = useState(false);
-  const [tick, setTick] = useState(0);
-  useEffect(() => {
-    if (!playing) return;
-    const timer = setInterval(
-      () => setTick((tick) => (tick + 1) % (method.timeline?.prediction || 1)),
-      450,
-    );
-    return () => clearInterval(timer);
-  }, [playing, method.timeline?.prediction]);
+  const move = (delta) => {
+    const index = method.steps.findIndex((item) => item.id === active);
+    setActive(method.steps[Math.max(0, Math.min(method.steps.length - 1, index + delta))].id);
+  };
   const [mode, setMode] = useState(method.modes?.[0]?.id || 'inference');
   const step = method.steps.find((item) => item.id === active);
   const currentMode = method.modes?.find((item) => item.id === mode);
@@ -40,10 +42,61 @@ function MethodExplorer({ paper, method }) {
         </div>
       )}
       {currentMode && <p>{currentMode.description}</p>}
+      <svg
+        className="mechanism-strip"
+        viewBox={`0 0 ${Math.max(1, method.steps.length) * 160} 100`}
+        role="img"
+        aria-label="方法信息流，节点说明和操作在下方"
+      >
+        <defs>
+          <marker
+            id={`flow-arrow-${paper.id}`}
+            viewBox="0 0 10 10"
+            refX="9"
+            refY="5"
+            markerWidth="6"
+            markerHeight="6"
+            orient="auto"
+          >
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor" />
+          </marker>
+        </defs>
+        {method.steps.map((item, index) => (
+          <g key={item.id} className={active === item.id ? 'active-mechanism' : ''}>
+            {index < method.steps.length - 1 && (
+              <path
+                d={`M ${index * 160 + 142} 45 H ${index * 160 + 172}`}
+                markerEnd={`url(#flow-arrow-${paper.id})`}
+              />
+            )}
+            <rect x={index * 160 + 12} y="15" width="130" height="60" rx="5" />
+            <text x={index * 160 + 77} y="42" textAnchor="middle">
+              {item.label}
+            </text>
+            <text x={index * 160 + 77} y="62" textAnchor="middle" className="flow-caption">
+              {item.updates?.includes(mode) ? '更新参数' : `${index + 1} / ${method.steps.length}`}
+            </text>
+          </g>
+        ))}
+      </svg>
+      <div className="visual-controls" aria-label="方法讲解控制">
+        <button disabled={active === method.steps[0]?.id} onClick={() => move(-1)}>
+          上一步机制
+        </button>
+        <button disabled={active === method.steps.at(-1)?.id} onClick={() => move(1)}>
+          下一步机制
+        </button>
+        <span className="muted">整理者流程重绘 · 非模型运行；全部步骤始终可点击</span>
+      </div>
       <ol className="method-flow">
         {method.steps.map((item, index) => (
           <li key={item.id}>
-            <button aria-pressed={active === item.id} onClick={() => setActive(item.id)}>
+            <button
+              aria-pressed={active === item.id}
+              onClick={() => {
+                setActive(item.id);
+              }}
+            >
               <span>{index + 1}</span>
               <b>{item.label}</b>
               {item.updates?.includes(mode) && <small>参数更新</small>}
@@ -55,6 +108,7 @@ function MethodExplorer({ paper, method }) {
         <aside className="method-detail" aria-live="polite">
           <h3>{step.label}</h3>
           <p>{step.description}</p>
+          <SourceUpdate paper={paper} derived={step} />
           <div className="row wrap">
             {step.section && (
               <a
@@ -78,45 +132,19 @@ function MethodExplorer({ paper, method }) {
           </div>
         </aside>
       )}
+      {method.representation && (
+        <>
+          <ActionEncoding representation={method.representation} />
+          <SourceUpdate paper={paper} derived={method.representation} />
+        </>
+      )}
       {method.timeline && (
-        <div className="action-timeline">
-          <h3>预测与执行窗口</h3>
-          <button
-            onClick={() => setPlaying(!playing)}
-            disabled={matchMedia('(prefers-reduced-motion: reduce)').matches}
-          >
-            {playing ? '暂停时间示意' : '播放时间示意'}
-          </button>
-          <button
-            onClick={() => {
-              setPlaying(false);
-              setTick((tick + 1) % method.timeline.prediction);
-            }}
-          >
-            下一步
-          </button>
-          <p>{method.timeline.description}</p>
-          <div className="action-steps">
-            {Array.from({ length: method.timeline.prediction }, (_, i) => (
-              <span
-                key={i}
-                className={
-                  (i < method.timeline.execution ? 'executed' : '') +
-                  (i === tick ? ' current-step' : '')
-                }
-              >
-                {i + 1}
-                <small>{i < method.timeline.execution ? '执行' : '预测'}</small>
-              </span>
-            ))}
-          </div>
-          <small>控制流程示意，非机器人实测轨迹。</small>
-        </div>
+        <ControlCycle timeline={method.timeline} source={method.steps.at(-1)?.source} />
       )}
     </section>
   );
 }
-function ExperimentExplorer({ groups }) {
+function ExperimentExplorer({ paper, groups }) {
   const requestedGroup = new URLSearchParams(location.hash.split('?')[1] || '').get('experiment');
   const [groupId, setGroupId] = useState(requestedGroup || groups[0].id);
   useEffect(() => {
@@ -134,7 +162,11 @@ function ExperimentExplorer({ groups }) {
   const [task, setTask] = useState('');
   const tasks = [...new Set(group.rows.map((row) => row.task).filter(Boolean))];
   const rows = group.rows.filter((row, i) => !hidden.includes(i) && (!task || row.task === task));
-  const maximum = Math.max(...group.rows.map((row) => Math.abs(row.value || 0)), 1);
+  const values = group.rows.map((row) => row.value).filter(Number.isFinite);
+  const minimum = Math.min(0, ...values),
+    maximum = Math.max(0, ...values);
+  const range = maximum - minimum || 1;
+  const zero = (-minimum / range) * 100;
   return (
     <section className="experiment-explorer" aria-label="条件化实验结果">
       <h2>实验回答了什么</h2>
@@ -157,6 +189,7 @@ function ExperimentExplorer({ groups }) {
         </select>
       </label>
       <h3>{group.label}</h3>
+      <SourceUpdate paper={paper} derived={group} />
       <dl className="experiment-protocol">
         {[
           ['任务', group.task],
@@ -214,14 +247,30 @@ function ExperimentExplorer({ groups }) {
         {rows.map((row, i) => (
           <div className="result-bar" key={i}>
             <span>{row.label}</span>
-            <div>
+            <div style={{ position: 'relative' }}>
+              <span
+                aria-hidden="true"
+                style={{
+                  position: 'absolute',
+                  left: zero + '%',
+                  height: '100%',
+                  borderLeft: '1px solid currentColor',
+                }}
+              />
               <i
                 style={{
-                  width: row.value === null ? '0%' : `${(Math.abs(row.value) / maximum) * 100}%`,
+                  position: 'absolute',
+                  left:
+                    (Number.isFinite(row.value) && row.value < 0
+                      ? ((row.value - minimum) / range) * 100
+                      : zero) + '%',
+                  width: Number.isFinite(row.value)
+                    ? (Math.abs(row.value) / range) * 100 + '%'
+                    : '0%',
                 }}
               />
             </div>
-            <b>{row.value === null ? '未知' : `${row.value}${group.unit}`}</b>
+            <b>{!Number.isFinite(row.value) ? '未知' : `${row.value}${group.unit}`}</b>
           </div>
         ))}
       </div>

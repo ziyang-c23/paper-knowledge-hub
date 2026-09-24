@@ -8,9 +8,9 @@ function paperKey(paperId) {
   if (typeof paperId !== 'string' || paperId.length > 120 || !stableId.test(paperId))
     throw fail('Invalid paper ID');
 }
-export async function readReadingRecords(root, paperId) {
+export async function readReadingRecords(root, paperId, snapshot) {
   paperKey(paperId);
-  const store = await readWorkspace(root);
+  const store = snapshot || (await readWorkspace(root));
   if (!store.dataset.papers.some((p) => p.id === paperId)) throw fail('Paper not found', 404);
   try {
     const file = path.join(await safePrivate(root), 'reading-records', paperId + '.json');
@@ -26,6 +26,16 @@ export async function readReadingRecords(root, paperId) {
     if (error.code !== 'ENOENT') throw error;
     return { paperId, revision: 'empty', entries: [] };
   }
+}
+/** Read only active library records; never crawl arbitrary files or create folders. */
+export async function listReadingRecords(root, snapshot) {
+  const store = snapshot || (await readWorkspace(root));
+  const records = await Promise.all(
+    store.dataset.papers
+      .filter((paper) => paper.lifecycle !== 'archived')
+      .map((paper) => readReadingRecords(root, paper.id, store)),
+  );
+  return records.filter((record) => record.entries.length > 0);
 }
 export async function saveReadingRecords(root, { paperId, entries, expectedRevision }) {
   paperKey(paperId);

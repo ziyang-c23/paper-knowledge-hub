@@ -3,6 +3,7 @@ import path from 'node:path';
 import Ajv from 'ajv';
 import { normalizePaper } from '../src/lib/knowledge.mjs';
 import { entityDimensions } from '../src/lib/entities.mjs';
+import { paperSources, hasPublicSources } from '../src/lib/sources.mjs';
 export const collections = ['papers', 'topics', 'concepts', 'relations', 'evidence'];
 const schema = JSON.parse(
   await readFile(new URL('../schemas/dataset.schema.json', import.meta.url), 'utf8'),
@@ -152,7 +153,7 @@ export function validateData(data) {
 }
 const publicKeys = {
   paper:
-    'schemaVersion id title year authors url visibility demo status topics tags aliases abstract note arxiv doi version updated acronym problem method assumptions inputs outputs data tasks evaluation limitations conclusions deployment memory worldModel platform facets claimEvidence visuals',
+    'schemaVersion id title year authors url visibility demo status topics tags aliases abstract note arxiv doi version updated acronym problem method assumptions inputs outputs data tasks evaluation limitations conclusions deployment memory worldModel platform facets claimEvidence visuals sourceBundle sources explanations media visualNarratives',
   topic:
     'schemaVersion id title visibility demo description dimensions branches questions boundaries analysis gaps evidenceIds compareIds comparisonQuestion',
   concept: 'schemaVersion id title kind visibility demo description aliases dimension',
@@ -238,6 +239,53 @@ function publicText(value, data, publishedIds, owner) {
     })
     .join('');
 }
+// Newly added explanation collections need their own publication choice; an
+// already-public paper is not consent to publish a newly generated explanation.
+function explicitlyPublicModules(value) {
+  if (Array.isArray(value)) return value.filter((item) => item?.visibility === 'public');
+  if (value && typeof value === 'object')
+    return Object.fromEntries(
+      Object.entries(value).filter(([, item]) => item?.visibility === 'public'),
+    );
+  return [];
+}
+function publicNested(value, data, publishedIds, owner) {
+  if (typeof value === 'string') {
+    // A structured media/source URL can point directly at a local document route.
+    // Run it through the same canonical-source policy as Markdown links.
+    if (/^(?:\/api\/documents\/|#\/document\/)/.test(value)) {
+      const converted = publicText(`[原文](${value})`, data, publishedIds, owner).match(
+        /^\[原文\]\(([^)]+)\)$/,
+      );
+      return converted?.[1] || '';
+    }
+    return publicText(value, data, publishedIds, owner);
+  }
+  if (Array.isArray(value))
+    return value
+      .map((item) => publicNested(item, data, publishedIds, owner))
+      .filter((item) => item !== undefined);
+  if (value && typeof value === 'object') {
+    if (!hasPublicSources(owner, value)) return undefined;
+    const blocked = new Set([
+      'privateNotes',
+      'personalAnalysis',
+      'internalNotes',
+      'localPath',
+      'documentId',
+      'pageIndex',
+      'pageLabel',
+      'quote',
+    ]);
+    return Object.fromEntries(
+      Object.entries(value)
+        .filter(([key]) => !blocked.has(key))
+        .map(([key, item]) => [key, publicNested(item, data, publishedIds, owner)])
+        .filter(([, item]) => item !== undefined),
+    );
+  }
+  return value;
+}
 export function publicProjection(data) {
   const out = emptyData();
   const publishedIds = new Set(
@@ -318,14 +366,27 @@ export function publicProjection(data) {
     out[collection] = out[collection].map((record) => {
       const owner =
         collection === 'papers' ? data.papers.find((paper) => paper.id === record.id) : undefined;
+      if (owner && ('sources' in owner || 'sourceBundle' in owner)) {
+        record = { ...record, sources: paperSources(owner) };
+        delete record.sourceBundle;
+      }
       return Object.fromEntries(
         Object.entries(record).map(([key, value]) => [
           key,
-          typeof value === 'string'
-            ? publicText(value, data, publishedIds, owner)
-            : Array.isArray(value) && value.every((item) => typeof item === 'string')
-              ? value.map((item) => publicText(item, data, publishedIds, owner))
-              : value,
+          ['sources', 'explanations', 'media', 'visualNarratives', 'visuals'].includes(key)
+            ? publicNested(
+                ['sources', 'media', 'explanations', 'visualNarratives'].includes(key)
+                  ? explicitlyPublicModules(value)
+                  : value,
+                data,
+                publishedIds,
+                owner,
+              )
+            : typeof value === 'string'
+              ? publicText(value, data, publishedIds, owner)
+              : Array.isArray(value) && value.every((item) => typeof item === 'string')
+                ? value.map((item) => publicText(item, data, publishedIds, owner))
+                : value,
         ]),
       );
     });

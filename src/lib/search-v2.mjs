@@ -1,5 +1,7 @@
 /** Deterministic lexical search; no embeddings, LLM, or hidden network requests. */
 import { normalizeText, inScope, paperMatches, graphNeighborhood } from './knowledge.mjs';
+import { paperSources, sourceFreshness, hasPublicSources } from './sources.mjs';
+import { mediaLocation } from './media-location.mjs';
 const fields = [
   'abstract',
   'problem',
@@ -78,7 +80,17 @@ export function enhancedSearch(data, query, options = {}) {
   const strategy = ['baseline', 'graph', 'ranked'].includes(options.strategy)
     ? options.strategy
     : 'ranked';
-  const scope = ['all', 'metadata', 'notes', 'evidence', 'pdf'].includes(options.scope)
+  const scope = [
+    'all',
+    'metadata',
+    'notes',
+    'evidence',
+    'pdf',
+    'sources',
+    'visuals',
+    'reading',
+    'topics',
+  ].includes(options.scope)
     ? options.scope
     : 'all';
   const papers = data.papers.filter((p) => inScope(data, p) && paperMatches(p, options));
@@ -86,11 +98,28 @@ export function enhancedSearch(data, query, options = {}) {
   // Attachment text is deliberately impossible to query in public/static mode.
   const documents =
     data.scope === 'local' ? (options.documents || []).filter((d) => paperIds.has(d.paperId)) : [];
+  const readingRecords =
+    data.scope === 'local'
+      ? (options.readingRecords || []).filter((r) => paperIds.has(r.paperId))
+      : [];
+  const topics = (data.topics || []).filter(
+    (topic) =>
+      inScope(data, topic) &&
+      (!options.paperId || papers.some((p) => p.topics?.includes(topic.id))) &&
+      (!options.topic || topic.id === options.topic),
+  );
   const corpus = [];
   const add = (p, sourceType, text, weight, extra = {}) => {
     if (!text || (scope !== 'all' && scope !== sourceType)) return;
     for (const chunk of passage(text))
-      corpus.push({ paperId: p.id, sourceType, fullText: chunk, weight, ...extra });
+      corpus.push({
+        targetType: 'paper',
+        paperId: p.id,
+        sourceType,
+        fullText: chunk,
+        weight,
+        ...extra,
+      });
   };
   for (const p of papers) {
     add(
@@ -146,6 +175,99 @@ export function enhancedSearch(data, query, options = {}) {
       body.push(line);
     }
     flushNote();
+    for (const source of paperSources(p)) {
+      if (data.scope !== 'local' && source.visibility !== 'public') continue;
+      add(
+        p,
+        'sources',
+        [
+          source.title,
+          source.label,
+          source.summary,
+          source.text,
+          source.locator,
+          source.path,
+          source.symbol,
+          source.revision,
+          ...(source.supports || []),
+        ]
+          .filter(Boolean)
+          .join('\n'),
+        2,
+        {
+          sourceId: source.id,
+          sourceKind: source.type || source.kind,
+          sourceTitle: source.title || source.label,
+          sourceRevision: source.revision,
+          sourceStatus: source.status || 'catalogued',
+          sourceUrl: /^https:\/\//.test(source.url || '') ? source.url : undefined,
+          locator: source.locator || source.path,
+          sourcePath: source.path,
+          sourceSymbol: source.symbol,
+        },
+      );
+    }
+    for (const step of p.visuals?.method?.steps || []) {
+      if (data.scope !== 'local' && !hasPublicSources(p, step)) continue;
+      add(p, 'visuals', [step.label, step.description].join('\n'), 2, {
+        sourceId: step.id,
+        sourceTitle: step.label,
+        sourceUrl: step.source?.url,
+        locator: step.source?.locator,
+        sourceFreshness: sourceFreshness(p, step).status,
+      });
+    }
+    for (const group of p.visuals?.experiments || []) {
+      if (data.scope !== 'local' && !hasPublicSources(p, group)) continue;
+      add(
+        p,
+        'visuals',
+        [
+          group.label,
+          group.task,
+          group.data,
+          group.adaptation,
+          group.metric,
+          ...(group.rows || []).map((row) =>
+            [row.label, row.task, row.condition, row.value ?? '未报告', group.unit]
+              .filter((x) => x !== undefined)
+              .join(' · '),
+          ),
+        ]
+          .filter(Boolean)
+          .join('\n'),
+        2,
+        {
+          sourceId: group.id,
+          sourceTitle: group.label,
+          experimentId: group.id,
+          sourceUrl: group.source?.url,
+          locator: group.source?.locator,
+          sourceFreshness: sourceFreshness(p, group).status,
+        },
+      );
+    }
+    for (const media of p.media || []) {
+      if (data.scope !== 'local' && (media.visibility !== 'public' || !hasPublicSources(p, media)))
+        continue;
+      add(
+        p,
+        'sources',
+        [media.title, media.caption, media.observation, media.transcript, media.cannotInfer]
+          .filter(Boolean)
+          .join('\n'),
+        1,
+        {
+          sourceId: media.id || media.url,
+          sourceKind: media.type,
+          sourceTitle: media.caption,
+          sourceUrl: /^https:\/\//.test(media.url || '') ? media.url : undefined,
+          locator: [media.start, media.end].filter(Boolean).join('–'),
+          mediaStart: mediaLocation(media).start,
+          mediaEnd: mediaLocation(media).end,
+        },
+      );
+    }
     if (data.scope === 'local') add(p, 'notes', p.personalAnalysis, 1.2, { curatorAnalysis: true });
     for (const e of (data.evidence || []).filter((e) => e.paperId === p.id && inScope(data, e))) {
       add(p, 'evidence', e.text, 3, {
@@ -157,6 +279,46 @@ export function enhancedSearch(data, query, options = {}) {
       });
     }
   }
+  for (const record of readingRecords)
+    for (const entry of record.entries || [])
+      add(
+        { id: record.paperId },
+        'reading',
+        [entry.text, entry.quote, entry.section].filter(Boolean).join('\n'),
+        1.5,
+        {
+          readingRecordId: String(entry.id),
+          documentId: entry.documentId,
+          pageIndex: entry.pageIndex,
+          section: entry.section,
+          ...(entry.section?.startsWith('note-') ? { sectionId: entry.section } : {}),
+          locator: entry.page,
+          sourceTitle: '阅读问题与批注',
+        },
+      );
+  for (const topic of topics)
+    add(
+      {},
+      'topics',
+      [
+        topic.title,
+        topic.description,
+        topic.analysis,
+        topic.boundaries,
+        ...(topic.dimensions || []),
+        ...(topic.branches || []),
+        ...(topic.questions || []),
+        ...(topic.gaps || []),
+      ]
+        .filter(Boolean)
+        .join('\n'),
+      2,
+      {
+        targetType: 'topic',
+        topicId: topic.id,
+        sourceTitle: topic.title,
+      },
+    );
   for (const d of documents)
     for (const page of d.pages || [])
       add({ id: d.paperId }, 'pdf', page.text, 1, {
@@ -179,6 +341,8 @@ export function enhancedSearch(data, query, options = {}) {
     scope,
     mode: data.scope === 'local' ? 'local' : 'public',
     paperCount: papers.length,
+    topicCount: topics.length,
+    readingRecordCount: readingRecords.reduce((n, record) => n + record.entries.length, 0),
     documentCount: documents.length,
     pageCount: documents.reduce((n, d) => n + (d.pages || []).length, 0),
     unparsedPaperIds: papers
@@ -186,7 +350,15 @@ export function enhancedSearch(data, query, options = {}) {
       .map((p) => p.id),
     searchedSources:
       scope === 'all'
-        ? ['metadata', 'notes', 'evidence', ...(data.scope === 'local' ? ['pdf'] : [])]
+        ? [
+            'metadata',
+            'notes',
+            'evidence',
+            'sources',
+            'visuals',
+            'topics',
+            ...(data.scope === 'local' ? ['pdf', 'reading'] : []),
+          ]
         : [scope],
     tableExtraction: 'unchecked',
     formulaExtraction: 'unchecked',
@@ -235,20 +407,20 @@ export function enhancedSearch(data, query, options = {}) {
     .sort(
       (a, b) =>
         b.score - a.score ||
-        a.paperId.localeCompare(b.paperId) ||
+        (a.paperId || a.topicId).localeCompare(b.paperId || b.topicId) ||
         (a.pageIndex || 0) - (b.pageIndex || 0),
     );
   const seen = new Set();
   direct = direct
     .filter((row) => {
-      const key = `${row.paperId}:${row.sourceType}:${row.evidenceId || ''}:${row.documentId || ''}:${row.pageIndex || ''}`;
+      const key = `${row.paperId || row.topicId}:${row.sourceType}:${row.readingRecordId || ''}:${row.sourceId || ''}:${row.sectionId || ''}:${row.evidenceId || ''}:${row.documentId || ''}:${row.pageIndex || ''}`;
       if (seen.has(key)) return false;
       seen.add(key);
       return true;
     })
     .slice(0, Math.min(100, Math.max(1, options.limit || 40)));
   const expanded = [],
-    used = new Set(direct.map((x) => x.paperId));
+    used = new Set(direct.map((x) => x.paperId).filter(Boolean));
   if (strategy === 'graph')
     for (const root of [...used]) {
       const graph = graphNeighborhood(data, root, options.hops || 2, {

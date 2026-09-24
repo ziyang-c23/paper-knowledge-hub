@@ -195,7 +195,7 @@ export default function PdfViewer({ id, page, onSelection }) {
           </a>
         </div>
       )}
-      {onSelection && (
+      {onSelection && !window.__PKH_PRIVATE_WEB__ && (
         <button
           disabled={!quote}
           onClick={() =>

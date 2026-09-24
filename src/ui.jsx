@@ -73,7 +73,7 @@ export function AppShell({
     ['home', '工作台', '/', BookOpen],
     ['library', '文献', '/library', Database],
     ['topics', '研究专题', '/topics', Layers],
-    ['explore', '探索', workspace ? '/research' : '/query', Compass],
+    ['explore', '探索', '/research', Compass],
     ['settings', '设置与维护', '/manage', Settings],
   ];
   useEffect(() => {
@@ -143,7 +143,7 @@ export function AppShell({
         </div>
         <div className="sidebar-bottom">
           <span className="local-dot" />
-          {workspace ? '本地空间' : '公开阅读空间'}
+          {workspace?.readOnly ? '私人网页 · 只读' : workspace ? '本地空间' : '公开阅读空间'}
           <p>
             {dataset.papers.length} 篇论文 · {dataset.concepts.length} 个研究对象
           </p>
@@ -169,9 +169,7 @@ export function AppShell({
             onSubmit={(e) => {
               e.preventDefault();
               location.hash =
-                (workspace ? '/research' : '/query') +
-                '?q=' +
-                encodeURIComponent(new FormData(e.currentTarget).get('q'));
+                '/research' + '?q=' + encodeURIComponent(new FormData(e.currentTarget).get('q'));
             }}
           >
             <Search size={17} />
@@ -179,7 +177,7 @@ export function AppShell({
               id="workspace-search"
               name="q"
               aria-label="全库搜索"
-              placeholder="搜索论文、实体、笔记与原文…"
+              placeholder="搜索论文、代码、项目与笔记…"
             />
             <kbd>⌘ K</kbd>
           </form>
@@ -189,7 +187,11 @@ export function AppShell({
                 <Inbox size={18} />
                 <span>草稿箱</span>
               </a>
-              <button className="button primary" onClick={() => setCreate(true)}>
+              <button
+                hidden={workspace?.readOnly}
+                className="button primary"
+                onClick={() => setCreate(true)}
+              >
                 <Plus size={17} />
                 <span>新建</span>
               </button>
@@ -218,19 +220,29 @@ export function AppShell({
           {area === 'explore' && (
             <SectionNav
               label="探索方式"
-              active={path === '/graph' ? '#/graph' : workspace ? '#/research' : '#/query'}
+              active={path === '/graph' ? '#/graph' : '#/research'}
               items={[
-                [workspace ? '#/research' : '#/query', '检索与证据'],
+                ['#/research', '检索与证据'],
                 ['#/graph', '关系探索'],
               ]}
             />
           )}
-          {workspace && <p className="workspace-state">本地完整研究库</p>}
+          {workspace && (
+            <p className="workspace-state">
+              {workspace.readOnly ? '私人完整研究库 · 只读' : '本地完整研究库'}
+            </p>
+          )}
           {children}
         </main>
         <footer>
           Research Space{' '}
-          <span>{workspace ? '保存在此设备 · 资料由你掌握' : '公开资料 · 可追溯来源'}</span>
+          <span>
+            {workspace?.readOnly
+              ? '受保护资料 · 服务器只读快照'
+              : workspace
+                ? '保存在此设备 · 资料由你掌握'
+                : '公开资料 · 可追溯来源'}
+          </span>
         </footer>
       </div>
       {selected.length > 0 && path != '/compare' && (
@@ -327,9 +339,12 @@ export function WorkbenchHome({ dataset, workspace }) {
         title={workspace ? '研究阅读与综合' : '从一个研究问题开始'}
         description="阅读、整理与发现，在一个工作空间里自然衔接。"
         actions={
-          <a className="button primary" href={workspace ? '#/edit/new' : '#/library'}>
+          <a
+            className="button primary"
+            href={workspace && !workspace.readOnly ? '#/edit/new' : '#/library'}
+          >
             <Plus size={16} />
-            {workspace ? '收录论文' : '浏览论文'}
+            {workspace && !workspace.readOnly ? '收录论文' : '浏览论文'}
           </a>
         }
       />

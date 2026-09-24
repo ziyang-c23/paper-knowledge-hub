@@ -242,3 +242,91 @@ test('local task API requires token and revision; exported context is accessible
   const listed = await fetch(base + '/api/ai-tasks').then((r) => r.json());
   assert.equal(listed.tasks[0].status, 'running');
 });
+
+test('AI context and explanation imports share canonical source consent and capture actual revisions', async (t) => {
+  const { root, store } = await fixture(t);
+  const updated = await putRecord(root, {
+    expectedRevision: store.revision,
+    collection: 'papers',
+    record: {
+      ...store.dataset.papers.find((p) => p.id === 'paper-a'),
+      sources: [
+        {
+          id: 'denied',
+          aiAllowed: false,
+          status: 'read',
+          text: 'DENIED_CANONICAL',
+          revision: 'new',
+        },
+      ],
+      sourceBundle: {
+        items: [
+          { id: 'denied', aiAllowed: true, status: 'read', text: 'DENIED_LEGACY', revision: 'old' },
+          {
+            id: 'allowed',
+            aiAllowed: true,
+            status: 'read',
+            text: 'Allowed source',
+            revision: 'real-commit',
+            privateNotes: 'NESTED_SECRET',
+            metadata: { personalAnalysis: 'DEEP_SECRET' },
+          },
+          { id: 'unspecified', text: 'NO_CONSENT' },
+        ],
+      },
+      explanations: [
+        { id: 'deny-derived', body: 'DENIED_DERIVED', sourceIds: ['denied'] },
+        { id: 'allow-derived', body: 'Allowed derived', sourceIds: ['allowed'] },
+      ],
+    },
+  });
+  const action = (input) => mutateAITask(root, { expectedRevision: updated.revision, ...input });
+  const task = await action({ action: 'create', type: 'explanation', paperIds: ['paper-a'] });
+  await action({ action: 'prepare', id: task.id });
+  const context = await getAITaskContext(root, task.id);
+  assert.doesNotMatch(JSON.stringify(context), /DENIED_|NESTED_SECRET|DEEP_SECRET|NO_CONSENT/);
+  assert.equal(context.papers[0].sourceBundle, undefined);
+  assert.deepEqual(
+    context.papers[0].sources.map((s) => s.id),
+    ['allowed'],
+  );
+  await action({
+    action: 'import',
+    id: task.id,
+    result: {
+      explanations: [
+        {
+          id: 'new-guide',
+          body: 'Source-backed draft',
+          kind: 'curator-synthesis',
+          sourceIds: ['allowed'],
+          sourceRevisions: { allowed: 'invented-commit' },
+        },
+      ],
+    },
+  });
+  const guide = (await listDrafts(root))[0].record.explanations.find((e) => e.id === 'new-guide');
+  assert.deepEqual(guide.sourceRevisions, { allowed: 'real-commit' });
+  assert.equal(guide.visibility, 'private');
+  const blocked = await action({ action: 'create', type: 'explanation', paperIds: ['paper-a'] });
+  await action({ action: 'prepare', id: blocked.id });
+  await assert.rejects(
+    () =>
+      action({
+        action: 'import',
+        id: blocked.id,
+        result: {
+          explanations: [
+            {
+              id: 'blocked-guide',
+              body: 'Cannot use legacy consent',
+              kind: 'curator-synthesis',
+              sourceIds: ['denied'],
+            },
+          ],
+        },
+      }),
+    /read source IDs/,
+  );
+  assert.equal((await listDrafts(root)).length, 1);
+});

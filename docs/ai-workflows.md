@@ -2,6 +2,8 @@
 
 在仓库根目录使用三个可发现入口：`$paper-knowledge-hub` 整理论文、`$hub-entities` 整理实体与关系、`$hub-study` 整理专题与输出。它们在 `.agents/skills/`；当前 Agent 可直接读取 SKILL.md，新开的仓库任务可按名称发现。网页模型配置与外部 Agent 独立：没有模型密钥仍可完成上述工作流。
 
+多源阅读统一由 `$paper-knowledge-hub` 按实际缺口路由，分别读取来源发现与机制解释参考。已有 `$source-discovery`、`$source-reader`、`$explanation-builder` 等入口保留兼容，不要求按八阶段逐个运行。来源发现、实际读取、已索引和解释候选是不同状态；全部复用当前 schema 与草稿箱。
+
 草稿格式：
 
 ```json
@@ -32,6 +34,16 @@
 
 ## 准备本地上下文
 
+只读检查一篇记录的现有来源、附件和证据，可执行：
+
+```sh
+node scripts/research-context.mjs inspect --paper PAPER_ID
+node scripts/research-context.mjs reader-context --paper PAPER_ID --out private/ai-drafts/PAPER-reader.json
+node scripts/research-context.mjs explain-context --paper PAPER_ID --out private/ai-drafts/PAPER-explain.json
+```
+
+`research-context.mjs` 不联网、不修改主库；它只读取当前 revision、已导入附件、证据和 `visuals.resources`，并拒绝把输出写到 `private/` 之外。它不能证明链接已访问或代码已运行。解释结果仍须按下述 `ai:draft` / `ai-task` 流程进入草稿箱。
+
 ```sh
 npm run ai:prepare -- --paper PAPER_ID
 npm run ai:prepare -- --paper PAPER_ID --out private/ai-drafts/PAPER_ID-context.json
@@ -61,12 +73,13 @@ npm run ai:draft -- private/ai-drafts/paper.json --collection papers --revision 
 
 研究关系必须引用真实 evidence；approved 需要 verified evidence 以及 source/curator origin。模型候选保持 pending。私人内容只进入本地草稿和导出，不发送网页模型；网页模型网关依然只消费经同意的公开证据。
 
-`private/draft-inbox/` 是待审产物，不属于主库自动历史和完整库备份。需要保留待审草稿时从草稿箱导出 JSON；已应用内容进入主库正常备份。
+`private/draft-inbox/` 是待审产物，不属于论文正文或主库自动历史。当前完整备份包含草稿、AI 任务和阅读记录；也可从草稿箱单独导出 JSON。
 
 ## 按任务整理，而不是整篇覆盖
 
-本地版的 AI 任务有三种明确入口：补充一个笔记章节、提取一篇论文的结构化实验、比较多篇论文并写回指定专题。任务先生成本地上下文文件，导出后可交给用户选择的模型或本地 Agent；服务本身不自动发送材料或调用云模型。结果导入后成为待审草稿，由人选择字段应用。
+本地版的 AI 任务有四种明确入口：补充一个笔记章节、提取结构化实验、比较论文写回专题，以及根据已读来源生成局部机制解释。任务先生成本地上下文文件，导出后可交给用户选择的模型或本地 Agent；服务本身不自动发送材料或调用云模型。结果导入后成为待审草稿，由人选择字段应用。
 
+- **机制解释**：类型 `explanation`，输出 `{ "explanations": [...] }`；每项有 `id/title/body/kind/sourceIds`，来源必须属于当前论文且已读、允许加入上下文。只合并局部解释，未知来源或未经验证的运行结果会被拒绝。
 - **补章节**：选择八章中的一个章节，结果 JSON 使用 `{ "sectionText": "章节正文" }`。正文可使用三级标题；后台只替换所选二级章节，保留其他章节与私人字段。
 - **提取实验**：结果 JSON 使用 `{ "experiments": [...] }`，记录格式见上下文的 `resultTemplate`；只更新 `visuals.experiments`。数值、单位、条件和来源进入同一记录，未知数值使用 `null`。
 - **比较论文**：选择 2–20 篇论文和已有专题，结果 JSON 使用 `{ "analysis": "...", "questions": [], "gaps": [] }`；更新专题分析及比较论文集合。
@@ -84,3 +97,9 @@ node scripts/ai-task.mjs list
 ```
 
 `prepare` 将真实上下文写入 `private/ai-tasks/TASK_ID.context.json`；`import` 只创建草稿。应用可在草稿箱完成，或显式执行 `apply --revision REVISION --id TASK_ID`。公开示例的 AI 结果先转为本地私有记录，不自动发布。
+
+## 多源上下文与版本
+
+新来源维护在 `paper.sources`，`sourceBundle` 由共享 adapter 兼容读取，不重复双写。上下文仅纳入 `aiAllowed: true` 来源并排除嵌套私人字段；这仍是本地上下文，不是外发授权。`research-context` 提供定向解释资料，`ai:prepare` 包含完整笔记/PDF；保存链接不表示读过代码或视频。
+
+草稿命令必须显式传入生成上下文时捕获的 `--revision`，不能用省略参数把过期候选默认为最新版本。遇冲突先重新读取和合并；通用草稿可修改来源/媒体/方法字段，专用任务只接收其 `resultTemplate` 定义的结果。

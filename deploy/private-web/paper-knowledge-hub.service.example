@@ -1,0 +1,21 @@
+[Unit]
+Description=Paper Knowledge Hub private read-only workspace
+After=network.target
+
+[Service]
+Type=simple
+User=paperhub
+Group=paperhub
+WorkingDirectory=/srv/paper-knowledge-hub
+EnvironmentFile=/etc/paper-knowledge-hub/private-web.env
+ExecStart=/usr/bin/node services/private-server.mjs
+Restart=on-failure
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadOnlyPaths=/srv/paper-knowledge-hub-data
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

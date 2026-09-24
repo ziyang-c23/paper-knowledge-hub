@@ -1,3 +1,4 @@
+import { AsyncPanel } from './async-panel.jsx';
 import React, { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import {
   Save,
@@ -48,6 +49,7 @@ function fileDownload(name, value, type = 'text/markdown') {
   setTimeout(() => URL.revokeObjectURL(u), 1000);
 }
 export async function workspaceRequest(path, body, token) {
+  if (body && window.__PKH_PRIVATE_WEB__) throw Error('私人网页为只读，请在主库所在的工作台编辑。');
   const res = await fetch(path, {
     method: body ? 'POST' : 'GET',
     headers: body ? { 'Content-Type': 'application/json', 'X-Workspace-Token': token } : {},
@@ -1539,7 +1541,9 @@ export function DocumentReader({ id, page = 1, workspace }) {
     <>
       <header className="page-heading">
         <div>
-          <div className="eyebrow">SOURCE READER · LOCAL ONLY</div>
+          <div className="eyebrow">
+            {workspace.readOnly ? 'SOURCE READER · PRIVATE' : 'SOURCE READER · LOCAL'}
+          </div>
           <h1>{doc.filename}</h1>
           <p>逐页原文对照，稳定文档 ID {doc.id}</p>
         </div>
@@ -1570,9 +1574,11 @@ export function DocumentReader({ id, page = 1, workspace }) {
         </a>
       </div>
       <div className="source-reader">
-        <Suspense fallback={<p>加载 PDF 阅读器…</p>}>
-          <PdfViewer id={id} page={index} />
-        </Suspense>
+        <AsyncPanel>
+          <Suspense fallback={<p>加载 PDF 阅读器…</p>}>
+            <PdfViewer id={id} page={index} />
+          </Suspense>
+        </AsyncPanel>
         <section className="panel padded">
           <h2>提取文本 · 文件第 {index} 页</h2>
           <p className="callout">
@@ -1587,6 +1593,21 @@ export function DocumentReader({ id, page = 1, workspace }) {
   );
 }
 export function ResearchSearch({ workspace, route, Md, notify }) {
+  const [readingRecords, setReadingRecords] = useState(workspace.readingRecords || []);
+  useEffect(() => {
+    if (workspace.public) return;
+    let active = true;
+    fetch('/api/workspace')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((value) => {
+        if (active && value?.readingRecords) setReadingRecords(value.readingRecords);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [workspace.revision]);
+
   const p = route.params,
     q = p.get('q') || '',
     strategy = p.get('strategy') || 'ranked',
@@ -1597,12 +1618,17 @@ export function ResearchSearch({ workspace, route, Md, notify }) {
     history.pushState(null, '', href('/research', Object.fromEntries(params)));
     dispatchEvent(new HashChangeEvent('hashchange'));
   };
-  const result = enhancedSearch({ ...workspace.dataset, scope: 'local' }, q, {
-    ...Object.fromEntries(p),
-    strategy,
-    scope,
-    documents: workspace.documents || [],
-  });
+  const result = enhancedSearch(
+    { ...workspace.dataset, scope: workspace.public ? 'public' : 'local' },
+    q,
+    {
+      ...Object.fromEntries(p),
+      strategy,
+      scope,
+      documents: workspace.documents || [],
+      readingRecords,
+    },
+  );
   const find = (id) => workspace.dataset.papers.find((x) => x.id === id);
   const ev = (id) => workspace.dataset.evidence.find((x) => x.id === id);
   return (
@@ -1611,7 +1637,10 @@ export function ResearchSearch({ workspace, route, Md, notify }) {
         <div>
           <div className="eyebrow">RESEARCH RETRIEVAL</div>
           <h1>研究查询与原文定位</h1>
-          <p>检索私有与公开本地资料；没有模型也可用。结果是证据候选，不能代替支持关系核查。</p>
+          <p>
+            检索{workspace.public ? '已公开' : '完整工作区'}
+            资料中的原文、笔记与已保存来源；点击结果继续阅读。
+          </p>
         </div>
         <a className="button" href="#/query">
           可选模型问答（仅公开证据）
@@ -1648,11 +1677,15 @@ export function ResearchSearch({ workspace, route, Md, notify }) {
               onChange={(e) => update('scope', e.target.value)}
             >
               {Object.entries({
-                all: '全部本地索引',
+                all: '全部已存资料',
                 metadata: '元数据 / 摘要',
                 notes: '笔记 / 个人分析',
                 evidence: '主张与证据',
                 pdf: 'PDF 逐页原文',
+                sources: '项目 / 代码 / 视频材料',
+                visuals: '方法步骤 / 实验记录',
+                reading: '阅读问题与批注',
+                topics: '专题分析',
               }).map(([k, v]) => (
                 <option value={k} key={k}>
                   {v}
@@ -1694,12 +1727,13 @@ export function ResearchSearch({ workspace, route, Md, notify }) {
           </label>
         </div>
         <p className="coverage">
-          当前本地库 {workspace.dataset.papers.filter((x) => x.lifecycle !== 'archived').length}{' '}
-          篇；{new Set((workspace.documents || []).map((d) => d.paperId)).size}{' '}
-          篇有逐页全文。未解析原文不计入 PDF 检索；表格 / 图片无结构化索引。 三种 V2
-          策略使用相同语料范围；增强为词法排序和实体别名，不含向量或语义模型。
+          当前{workspace.public ? '公开库' : '工作区'}{' '}
+          {workspace.dataset.papers.filter((x) => x.lifecycle !== 'archived').length} 篇；
+          {new Set((workspace.documents || []).map((d) => d.paperId)).size}{' '}
+          篇有逐页全文。检索已入库的项目、代码、视频说明及结构化方法与实验；不自动搜索互联网或识别视频画面。
+          三种 V2 策略使用相同语料范围；增强为词法排序和实体别名，不含向量或语义模型。
         </p>
-        <details>
+        <details hidden={workspace.public}>
           <summary>本次范围内尚未解析的论文（{result.coverage.unparsedPaperIds.length}）</summary>
           <p>
             {result.coverage.unparsedPaperIds.map((id) => find(id)?.acronym || id).join('、') ||
@@ -1728,19 +1762,42 @@ export function ResearchSearch({ workspace, route, Md, notify }) {
                   <div className="row between">
                     <a
                       className="result-title"
-                      href={href(
-                        '/paper/' + r.paperId,
-                        r.evidenceId
-                          ? { evidence: r.evidenceId }
-                          : r.sectionId
-                            ? { mode: 'note', section: r.sectionId }
-                            : {},
-                      )}
+                      href={
+                        r.topicId
+                          ? href('/topic/' + r.topicId)
+                          : href(
+                              '/paper/' + r.paperId,
+                              r.readingRecordId
+                                ? {
+                                    mode: 'source',
+                                    record: r.readingRecordId,
+                                    ...(r.documentId ? { document: r.documentId } : {}),
+                                    ...(r.pageIndex ? { page: r.pageIndex } : {}),
+                                  }
+                                : r.evidenceId
+                                  ? { evidence: r.evidenceId }
+                                  : r.sectionId
+                                    ? { mode: 'note', section: r.sectionId }
+                                    : {},
+                            )
+                      }
                     >
-                      {find(r.paperId)?.acronym || find(r.paperId)?.title || r.paperId}
+                      {r.topicId
+                        ? r.sourceTitle || r.topicId
+                        : find(r.paperId)?.acronym || find(r.paperId)?.title || r.paperId}
                     </a>
                     <span className="badge">
-                      {r.direct ? '直接命中' : '审核关系扩展'} · {r.sourceType || '笔记 / 证据'}
+                      {r.direct ? '直接命中' : '审核关系扩展'} ·{' '}
+                      {{
+                        metadata: '书目信息',
+                        notes: '笔记章节',
+                        evidence: '原文主张',
+                        pdf: 'PDF 原文',
+                        sources: '多源材料',
+                        visuals: '机制与实验',
+                        reading: '阅读记录',
+                        topics: '专题分析',
+                      }[r.sourceType] || '相关材料'}
                     </span>
                   </div>
                   <p>{r.text}</p>
@@ -1755,6 +1812,27 @@ export function ResearchSearch({ workspace, route, Md, notify }) {
                     </p>
                   )}
                   <div className="meta">
+                    {r.sourceTitle && (
+                      <span>
+                        {r.sourceKind || '研究材料'} · {r.sourceTitle}{' '}
+                        {r.sourceRevision ? `· ${r.sourceRevision}` : ''}
+                      </span>
+                    )}
+                    {r.sourceUrl && /^https:\/\//.test(r.sourceUrl) && (
+                      <a href={r.sourceUrl} target="_blank" rel="noreferrer">
+                        {r.locator || '打开对应来源'} ↗
+                      </a>
+                    )}
+                    {r.experimentId && (
+                      <a
+                        href={href('/paper/' + r.paperId, {
+                          mode: 'overview',
+                          experiment: r.experimentId,
+                        })}
+                      >
+                        打开实验解释
+                      </a>
+                    )}
                     {r.documentId && r.pageIndex && (
                       <a href={href('/document/' + r.documentId, { page: r.pageIndex })}>
                         核对 PDF 文件第 {r.pageIndex} 页
@@ -1770,7 +1848,9 @@ export function ResearchSearch({ workspace, route, Md, notify }) {
                         证据来源
                       </a>
                     )}
-                    <a href={href('/graph', { node: r.paperId, hops: 2 })}>检查关系依据</a>
+                    {r.paperId && (
+                      <a href={href('/graph', { node: r.paperId, hops: 2 })}>检查关系依据</a>
+                    )}
                   </div>
                 </article>
               );
@@ -1799,22 +1879,31 @@ export function ResearchSearch({ workspace, route, Md, notify }) {
           </thead>
           <tbody>
             {['baseline', 'graph', 'ranked'].map((s) => {
-              const r = enhancedSearch({ ...workspace.dataset, scope: 'local' }, q, {
-                strategy: s,
-                scope,
-                documents: workspace.documents || [],
-                topic: p.get('topic'),
-                paperId: p.get('paperId'),
-              });
+              const r = enhancedSearch(
+                { ...workspace.dataset, scope: workspace.public ? 'public' : 'local' },
+                q,
+                {
+                  strategy: s,
+                  scope,
+                  documents: workspace.documents || [],
+                  readingRecords,
+                  topic: p.get('topic'),
+                  paperId: p.get('paperId'),
+                },
+              );
               return (
                 <tr key={s}>
                   <td>{s}</td>
                   <td>{r.direct.length}</td>
                   <td>{r.expanded.length}</td>
                   <td>
-                    {[...new Set(r.direct.map((x) => find(x.paperId)?.acronym || x.paperId))].join(
-                      '、',
-                    ) || '无'}
+                    {[
+                      ...new Set(
+                        r.direct
+                          .filter((x) => x.paperId)
+                          .map((x) => find(x.paperId)?.acronym || x.paperId),
+                      ),
+                    ].join('、') || '无'}
                   </td>
                 </tr>
               );
